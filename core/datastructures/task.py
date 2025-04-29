@@ -1,0 +1,49 @@
+from dataclasses import dataclass
+from typing import Tuple
+from numpy import ndarray, integer
+
+
+
+
+@dataclass
+class Task:
+    """
+    Represents single task for breach protocol minigame.
+
+    matrix: ndarray[ndarray(dtype=int8)] |
+    buffer_size: [int|int8] |
+    demons: Tuple[ndarray(dtype=int8)] |
+    demons_costs: ndarray(dtype=int8) |
+    """
+    matrix: ndarray
+    demons: Tuple[ndarray, ...]
+    demons_costs: ndarray
+    buffer_size: int|integer
+
+    def __post_init__(self):
+        self._validate_inputs()
+
+
+    def _validate_inputs(self):
+        matrix = self.matrix
+        buffer_size = self.buffer_size
+        demons = self.demons
+        demons_cost = self.demons_costs
+
+        if matrix.ndim != 2 or matrix.shape[0] != matrix.shape[1]:
+            raise ValueError("matrix must be square 2d array")
+        if not isinstance(buffer_size, (int, integer)):
+            raise TypeError("buffer_size must be an integer")
+        # n = matrix.shape[0]
+        d_amo = len(demons)
+        if demons_cost.shape[0] != d_amo:
+            raise ValueError("demons and d_costs must have the same length")
+        for demon in demons:
+            if not isinstance(demon, ndarray) or demon.ndim != 1:
+                raise ValueError("Each demon must be a 1D numpy array")
+
+
+    def copy(self):
+        return Task(matrix=self.matrix, buffer_size=self.buffer_size, demons=self.demons, demons_costs=self.demons_costs)
+
+
