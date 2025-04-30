@@ -1,5 +1,9 @@
 from typing import Tuple, Dict
-from numpy import array, ndarray, empty, concatenate, full, argsort, nonzero, repeat
+from numpy import array, ndarray, empty, concatenate, full, argsort, nonzero, repeat, zeros
+
+from numpy.random import randint  # turns out numba does not work with new Generator :////
+from numpy.random import seed as np_set_seed
+from numba import njit
 
 from .bp_generator import BPGen, register_generator
 
@@ -7,7 +11,7 @@ from .bp_generator import BPGen, register_generator
 @register_generator('demons')
 class GeneratorDemons(BPGen):
     def __call__(self,
-                 matrix:ndarray, demons_lengths:array|Dict, overlap_chance:float = 0.4, max_overlap:int = 2
+                 matrix: ndarray, demons_lengths: array | Dict, overlap_chance: float = 0.4, max_overlap: int = 3
                  ) -> Tuple[array, ...]:
         """
         Generates sequences based on length_dict,
@@ -51,59 +55,99 @@ class GeneratorDemons(BPGen):
                 max_o = min(max_overlap, leng1, leng2)
                 overlap_leng = self.rng.integers(1, max_o + 1)
 
-                total_len = leng1 + leng2 - overlap_leng
-                combined = self._gen_single_sequence(total_len, matrix)
+                total_len = leng1 + leng2 - overlap_leng  # noqa (numpy int vs python int)
+                combined = self._gen_single_sequence(total_len, matrix, self.rng.integers(2**32))
 
-                # split and save 2 sequences
-                seq1 = combined[:leng1]
-                seq2 = combined[leng1 - overlap_leng:]
-                sequences[idx - 2] = seq1
-                sequences[idx - 1] = seq2
+                if combined is None:
+                    # generate sequences separately if combined is None
+                    seq1 = self._gen_single_sequence(leng1, matrix, self.rng.integers(2 ** 32))
+                    seq2 = self._gen_single_sequence(leng2, matrix, self.rng.integers(2 ** 32))
+                    sequences[idx - 2] = seq1
+                    sequences[idx - 1] = seq2
+                else:
+                    # split combined sequences if combined generated succefully
+                    seq1 = combined[:leng1]
+                    seq2 = combined[leng1 - overlap_leng:]  # noqa (numpy int vs python int)
+                    sequences[idx - 2] = seq1
+                    sequences[idx - 1] = seq2
             else:
-                seq = self._gen_single_sequence(leng1, matrix)
+                # generate single sequence normally
+                seq = self._gen_single_sequence(leng1, matrix, self.rng.integers(2**32))
                 sequences[idx - 1] = seq
 
-        
         sorted_indices = argsort([seq.size for seq in sequences])
         sequences = sequences[sorted_indices]
-        
+
         return tuple(sequences)
-    
-    
-    def _gen_single_sequence(self, length:int, matrix:ndarray) -> array:
+
+    @staticmethod
+    @njit
+    def _gen_single_sequence(length: int, matrix: ndarray, seed:int) -> ndarray | None:
+        # set seed for old numpy random generator, theoretically it encapsulates generation in instance,
+        # since seed chosen by self.rng
+        np_set_seed(seed=seed)
+
         size = matrix.shape[0]
-        demon = empty(length, dtype='int8')
+        max_candidates = size - 1
 
-        i, j = self.rng.integers(0, size, 2)
-        demon[0] = matrix[i, j]
+        # attempt limitation just to be sure (for really large demons),
+        # none of task_factory modes provides such specs for demons, but in case of manual creation return true on fail
+        max_attempts = 100
+        for att in range(max_attempts):
+            demon = empty(length, dtype='int8')
 
-        # True corresponds to row, False to column
-        curr_dir = self.rng.integers(0, 2, dtype=bool)
+            # boolean mask of used cells
+            used = zeros((size, size), dtype='bool')
+            i = randint(0, size)
+            j = randint(0, size)
 
-        for t in range(1, length):
-            if curr_dir:
-                next_j = self.rng.integers(0, size - 1, dtype='int8')
-                next_j = next_j if next_j < j else next_j + 1
-                demon[t] = matrix[i, next_j]
-                j = next_j
-            else:
-                next_i = self.rng.integers(0, size - 1, dtype='int8')
-                next_i = next_i if next_i < i else next_i + 1
-                demon[t] = matrix[next_i, j]
-                i = next_i
+            demon[0] = matrix[i, j]
+            used[i, j] = True
+            curr_dir = bool(randint(0, 2))
 
-            curr_dir = not curr_dir
+            valid = True
+            candidates = empty((max_candidates, 2), dtype='int8')
 
-        return demon
+            for t in range(1, length):
+                count = 0
+
+                if curr_dir:
+                    for cj in range(size):
+                        if cj != j and not used[i, cj]:
+                            candidates[count, 0] = i
+                            candidates[count, 1] = cj
+                            count += 1
+                else:
+                    for ci in range(size):
+                        if ci != i and not used[ci, j]:
+                            candidates[count, 0] = ci
+                            candidates[count, 1] = j
+                            count += 1
+
+                if count == 0:
+                    valid = False
+                    break
+
+                idx = randint(0, count)
+                i, j = candidates[idx, 0], candidates[idx, 1]
+                demon[t] = matrix[i, j]
+                used[i, j] = True
+                curr_dir = not curr_dir
+
+            if valid:
+                return demon
 
 
-
-
-
+        return None
 
 # if __name__ == '__main__':
-#     rng1 = default_rng()
-#     gen1 = GeneratorDemons(rng1)
+#     from icecream import ic
 #
-#     demons1 = gen1(array([i+1 for i in range(9)]).reshape((3, 3)), {1:2, 2:3})
-#     print(demons1)
+#     rng1 = default_rng(7798456498469845)
+#     n = 9
+#     mat1 = array([i+1 for i in range(n*n)]).reshape((n,n))
+#     ic(mat1)
+#
+#     gen1 = DemonsGenerator()
+#     res1 = gen1._gen_single_sequence(n*n//2, mat1, rng1.integers(2**32))
+#     ic(res1)
