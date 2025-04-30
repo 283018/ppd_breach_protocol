@@ -65,7 +65,7 @@ class GeneratorDemons(BPGen):
                     sequences[idx - 2] = seq1
                     sequences[idx - 1] = seq2
                 else:
-                    # split combined sequences if combined generated succefully
+                    # split combined sequences if combined generated successfully
                     seq1 = combined[:leng1]
                     seq2 = combined[leng1 - overlap_leng:]  # noqa (numpy int vs python int)
                     sequences[idx - 2] = seq1
