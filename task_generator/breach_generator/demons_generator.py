@@ -36,6 +36,10 @@ class GeneratorDemons(BPGen):
             indices = nonzero(demons_lengths)[0]
             lengths = repeat(indices, demons_lengths[indices])
 
+        # matrix.size
+        if any(i for i in lengths) > matrix.size:
+            raise ValueError(f"Length of some of demons is longer that maximum possible ({matrix.size}): {lengths}")
+
         self.rng.shuffle(lengths)
 
         total = lengths.size
@@ -95,7 +99,7 @@ class GeneratorDemons(BPGen):
         candidates = empty((max_candidates, 2), dtype='int8')
 
         # attempt limitation just to be sure (for really large demons),
-        # none of task_factory modes provides such specs for demons, but in case of manual creation return true on fail
+        # none of task_factory modes provides such specs for demons, but in case of manual creation return None on fail
         max_attempts = 100
         for att in range(max_attempts):
             used.fill(False)    # reset mask state

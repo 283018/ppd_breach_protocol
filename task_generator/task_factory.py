@@ -27,9 +27,10 @@ class TaskFactory:
         self.demons_gen = BPGen.create('demons', child_gens[1])
         self.costs_gen = BPGen.create('demons_costs', child_gens[2])
 
-    def __call__(self, mode=0):
+    def __call__(self, mode: int = 0) -> Task:
         """
         Main generator function.
+        :rtype: Task
         :param mode: generation mode
                     -3: varying complication of tasks (easy)
                     -2: varying complication of tasks (medium)
@@ -148,7 +149,7 @@ class TaskFactory:
             elif mode == -1:
                 buffer_length = max_demon_length
             elif mode == 0:
-                buffer_length = max_demon_length + self.rng.integers(0, 3)
+                buffer_length = max_demon_length + self.rng.integers(0, 3)  # noqa (numpy int vs python int)
 
         # Generate game data
         matrix = self.mat_gen(size, mat_mode)
@@ -156,6 +157,21 @@ class TaskFactory:
         costs = self.costs_gen(demons)
 
         return Task(matrix, demons, costs, buffer_length)
+
+    def gen_manual(self, matrix_size:int, demons_specs:dict|ndarray, buffer_size:int, matrix_mode:int=0) -> Task:
+        """
+        Manually generates Task according to given parameters
+        :param matrix_size:
+        :param demons_specs:
+        :param buffer_size:
+        :param matrix_mode:
+        :return: Task instance
+        """
+        matrix = self.mat_gen(matrix_size, matrix_mode)
+        demons = self.demons_gen(matrix, demons_specs)
+        costs = self.costs_gen(demons)
+        return Task(matrix, demons, costs, buffer_size)
+
 
 
 

@@ -1,4 +1,4 @@
-from numpy.random import Generator, default_rng
+from numpy.random import Generator
 from typing import Dict, Protocol, Any, Type
 
 

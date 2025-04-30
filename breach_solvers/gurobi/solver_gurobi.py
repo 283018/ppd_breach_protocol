@@ -1,4 +1,4 @@
-from .solvers_protocol import Solver, register_solver
+from breach_solvers.solvers_protocol import Solver, register_solver
 from core import Task, Solution
 
 from numpy import array, zeros, dot

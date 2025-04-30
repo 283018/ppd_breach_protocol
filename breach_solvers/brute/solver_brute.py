@@ -1,7 +1,7 @@
-from .solvers_protocol import Solver, register_solver
+from breach_solvers.solvers_protocol import Solver, register_solver
 from core import Task, Solution
 
-from numpy import array, int8
+from numpy import array, int8, zeros, empty
 from multiprocessing import Pool, cpu_count
 from functools import partial
 from time import perf_counter
@@ -13,17 +13,11 @@ from time import perf_counter
 # Jeśli się uda to użyć jit-compiler z numba, który ma wbudowany multiprocessing dla pętli
 
 
-#! TODO: @njit + prange
+#! TODO: sometimes stuck on over 8x8 matrices
+# TODO: @njit + prange
 @register_solver('brute')
 class BruteSolver(Solver):
     _allowed_kwargs = {'to_prune'}
-
-    def _validate_kwargs(self, kwargs):
-        if kwargs:
-            for kwarg in kwargs:
-                if kwarg not in self._allowed_kwargs:
-                    raise TypeError(f"Unexpected keyword argument: '{kwarg}'")
-
 
     def __call__(self, task:Task, **kwargs):
         self._validate_kwargs(kwargs)
@@ -36,9 +30,13 @@ class BruteSolver(Solver):
 
         n = matrix.shape[0]
         max_score = d_costs.sum()
+        process_num = min(n, cpu_count())
+
+        time_start = perf_counter()
 
         # aktualizuje multiprocessing dla wszystkich startowych pozycji (komórek w pierwszym rzędzie)
-        with Pool(processes=cpu_count()) as pool:
+        # TODO: sequential if ...
+        with Pool(processes=process_num) as pool:
             worker = partial(self._process_start_column,
                              matrix=matrix,
                              demons=demons,
@@ -49,9 +47,8 @@ class BruteSolver(Solver):
                              to_prune=to_prune,
                              )
 
-            time_start = perf_counter()
             results = pool.map(worker, range(n))
-            time_end = perf_counter()
+        time_end = perf_counter()
 
         # Znajduje najlepszy wynik ze wszystkich startowych kolumn
         best_score = 0
@@ -74,18 +71,26 @@ class BruteSolver(Solver):
         start_r, start_c = 0, start_col
         start_symbol = matrix[start_r, start_c]
 
-        # stan początkowy
-        initial_used = 1 << (start_r * n + start_c)
-        activated_mask = 0
+        # boolean array instead of bitmask
+        used = zeros((n, n), dtype='bool')
+        used[start_r, start_c] = True
+
+        activated = zeros(num_demons, dtype='bool')
         current_score = 0
 
         # sprawdzenie na demonów długości 1
         for i in range(num_demons):
             if len(demons[i]) == 1 and demons[i][0] == start_symbol:
-                activated_mask |= 1 << i
+                activated[i] = True
                 current_score += d_costs[i]
 
-        stack = [([(start_r, start_c)], [start_symbol], activated_mask, current_score, initial_used)]
+        stack = [(
+            [(start_r, start_c)],
+            [start_symbol],
+            activated.copy(),
+            current_score,
+            used.copy()
+        )]
 
         while stack:
             path, buffer, activated, score, used = stack.pop()
@@ -101,47 +106,38 @@ class BruteSolver(Solver):
                 last_r, last_c = path[-1]
 
                 if next_step % 2 == 1:  # rząd
-                    cells = [(last_r, c) for c in range(n) if not (used & (1 << (last_r * n + c)))]
+                    cells = [(last_r, c) for c in range(n) if not used[last_r, c]]
                 else:   # kolumna
-                    cells = [(r, last_c) for r in range(n) if not (used & (1 << (r * n + last_c)))]
+                    cells = [(r, last_c) for r in range(n) if not used[r, last_c]]
 
                 for r, c in cells:
                     new_path = path + [(r, c)]
                     new_symbol = matrix[r, c]
                     new_buffer = buffer + [new_symbol]
-                    new_used = used | (1 << (r * n + c))
 
-                    new_activated = activated
+                    new_used = used.copy()
+                    new_used[r, c] = True
+
+                    new_activated = activated.copy()
                     new_score = score
 
                     # sprawdzenie wszystkich demonów
                     for i in range(num_demons):
-                        if not (new_activated & (1 << i)):
+                        if not new_activated[i]:
                             demon = demons[i]
                             k = len(demon)
                             if len(new_buffer) >= k:
                                 if tuple(new_buffer[-k:]) == demon:
-                                    new_activated |= 1 << i
+                                    new_activated[i] = True
                                     new_score += d_costs[i]
 
                     # pruning jeśli nie da się pobić aktualny najlepszy wynik
                     # (wtedy niezużyty buffor nie ma znaczenia, ale przyspiesza to wyszukiwanie)
-                    remaining = sum(d_costs[i] for i in range(num_demons) if not (new_activated & (1 << i)))
+                    remaining = sum(d_costs[i] for i in range(num_demons) if not new_activated[i])
                     if not to_prune or (new_score + remaining > best_score):
                         stack.append((new_path, new_buffer, new_activated, new_score, new_used))
 
         return best_path, best_score
-
-
-    def change_pruning(self, change_to:bool):
-        """
-        Set pruning parameter
-        :param change_to: new value
-        """
-        if not isinstance(change_to, bool):
-            raise ValueError("Change_to should be boolean")
-        else:
-            self.to_prune = change_to
 
 
 

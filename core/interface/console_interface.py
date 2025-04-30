@@ -80,6 +80,7 @@ def mat_print(matrix, path=None) -> None:
         aligned_print(matrix)
 
 
+# TODO: just for task, just for solution
 def solution_print(task, solution, translate:bool=False) -> None:
     """
     Print given Task and Solution in console.
