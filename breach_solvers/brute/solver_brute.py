@@ -12,11 +12,6 @@ from numba import njit
 from icecream import ic
 
 
-# na razie nie jest zbytnio zoptymalizowany, mimo że używa multiprocessing, zwłaszcza dla dużych macierzy
-# planuje go bardziej zoptymalizować, usunąć niepotrzebne konwersje na listy
-# (a w ideale w ogóle się się pozbyć i działać tylko na numpy/ewentualnie deque)
-# Jeśli się uda to użyć jit-compiler z numba, który ma wbudowany multiprocessing dla pętli
-
 
 #! TODO: sometimes stuck on over 8x8 matrices
 # TODO: @njit + prange
@@ -32,11 +27,20 @@ class BruteSolver(Solver):
         demons = task.demons
         d_costs = task.demons_costs
         buffer_s = task.buffer_size
-        n_demons = len(demons)
 
         n = matrix.shape[0]
         max_score = d_costs.sum()
         d_lengths = array([d.size for d in demons])
+        n_demons = d_lengths.size
+        max_demon_len = d_lengths.max()
+
+        # TODO: use it ig
+        padded_demons = full((n_demons, max_demon_len), -1)
+        for i, d in enumerate(demons):
+            padded_demons[i, :d_lengths[i]] = d
+
+
+        init_stack_size = 100    # TODO: not-constant
 
         process_num = min(n, cpu_count())
 
@@ -54,7 +58,7 @@ class BruteSolver(Solver):
                              n=n,
                              max_score=max_score,
                              num_demons=n_demons,
-                             stack_dtype=self.make_stack_dtype(buffer_s, n_demons, n),
+                             stack_size=init_stack_size,
                              to_prune=to_prune,
                              )
 
@@ -72,27 +76,25 @@ class BruteSolver(Solver):
 
         return Solution(best_path).fill_solution(task), time_end - time_start
 
-    @staticmethod
-    def make_stack_dtype(buffer_size, num_demons, n):
-        return dtype([
-            ("path", 'int8', (buffer_size, 2)),
-            ("buff", 'int8', (buffer_size,)),
-            ("activ", 'bool', (num_demons,)),
-            ("score", 'int16'),
-            ("used", 'bool', (n, n)),
-            ("length", 'int8'),
-        ])
 
     @staticmethod
     # @njit
     def _process_start_column(start_col,  # starting column (setted by multiprocessing)
-                              matrix: ndarray, demons: Tuple[ndarray], demons_lengths: ndarray, d_costs: ndarray, buffer_size: int | integer, # specs of task itself
-                              n: int, max_score: int, num_demons: int,                  # pre-calculated parameters
-                              stack_dtype,
+                              matrix: ndarray, demons: Tuple[ndarray], demons_lengths: ndarray, d_costs: ndarray, buffer_size: int | integer,  # specs of task itself
+                              n: int, max_score: int, num_demons: int,  # pre-calculated parameters
+                              stack_size,
                               to_prune: bool,
                               ) -> Tuple[ndarray, integer]:
         # TODO: max stack instead of 100
-        stack = empty(100, dtype=stack_dtype)
+
+        max_stack = stack_size
+
+        stack_path = empty((max_stack, buffer_size, 2), dtype='int8')
+        stack_buff = empty((max_stack, buffer_size), dtype='int8')
+        stack_activ = empty((max_stack, num_demons), dtype='bool_')
+        stack_score = empty(max_stack, dtype='int16')
+        stack_used = empty((max_stack, n, n), dtype='bool_')
+        stack_length = empty(max_stack, dtype='int8')
 
         best_score = 0
         best_path = full((buffer_size, 2), -1, dtype='int8')
@@ -102,10 +104,10 @@ class BruteSolver(Solver):
         start_symbol = matrix[start_r, start_c]
 
         # boolean array instead of bitmask
-        used0 = zeros((n, n), dtype='bool')
+        used0 = zeros((n, n), dtype='bool_')
         used0[start_r, start_c] = True
 
-        activ0 = zeros(num_demons, dtype='bool')
+        activ0 = zeros(num_demons, dtype='bool_')
         current_score0 = 0
 
         # sprawdzenie na demonów długości 1
@@ -118,32 +120,31 @@ class BruteSolver(Solver):
         path0[0, 0] = start_r
         path0[0, 1] = start_c
 
-        buffer0 = full(buffer_size, -1, dtype='int8')
-        buffer0[0] = start_symbol
+        buff0 = full(buffer_size, -1, dtype='int8')
+        buff0[0] = start_symbol
         length0 = 1
 
         # Basically manual stack implementation by bundled parallel pre-allocated arrays
         # Setting first elements on stack
         top = 0
-        stack[top]['path'] = path0
-        stack[top]['buff'] = buffer0
-        stack[top]['activ'] = activ0
-        stack[top]['score'] = current_score0
-        stack[top]['used'] = used0
-        stack[top]['length'] = length0
+        stack_path[top] = path0
+        stack_buff[top] = buff0
+        stack_activ[top] = activ0
+        stack_score[top] = current_score0
+        stack_used[top] = used0
+        stack_length[top] = length0
         top += 1
 
         while top > 0:
             top -= 1
 
             # pop from stack
-            rec = stack[top]
-            path = rec['path']
-            buff = rec['buff']
-            activ = rec['activ']
-            score = rec['score']
-            used = rec['used']
-            curr_len = rec['length']
+            path = stack_path[top]
+            buff = stack_buff[top]
+            activ = stack_activ[top]
+            score = stack_score[top]
+            used = stack_used[top]
+            curr_len = stack_length[top]
 
             if score > best_score:
                 if curr_len <= buffer_size:
@@ -164,11 +165,12 @@ class BruteSolver(Solver):
                 if (next_step & 1) == 1:  # synonymic to next_step % 2 == 1
                     for c in range(n):
                         if not used[last_r, c]:
-                            new_len = curr_len + 1
+                            new_len = next_step
 
                             # copy-on-write arrays
                             new_path = path.copy()
-                            new_path[curr_len] = (last_r, c)
+                            new_path[curr_len, 0] = last_r
+                            new_path[curr_len, 1] = c
                             new_buff = buff.copy()
                             new_buff[curr_len] = matrix[last_r, c]
                             new_used = used.copy()
@@ -192,33 +194,34 @@ class BruteSolver(Solver):
                                             new_score += d_costs[i]
 
                             # pruning
-                            if not to_prune:
-                                do_push = True
-                            else:
+                            if to_prune:
                                 rem = 0
                                 for i in range(num_demons):
                                     if not new_activ[i]:
                                         rem += d_costs[i]
                                 do_push = (new_score + rem > best_score)
+                            else:
+                                do_push = True
 
                             if do_push:
                                 idx = top
-                                stack[idx]['path'] = new_path
-                                stack[idx]['buff'] = new_buff
-                                stack[idx]['activ'] = new_activ
-                                stack[idx]['score'] = new_score
-                                stack[idx]['used'] = new_used
-                                stack[idx]['length'] = new_len
+                                stack_path[idx] = new_path
+                                stack_buff[idx] = new_buff
+                                stack_activ[idx] = new_activ
+                                stack_score[idx] = new_score
+                                stack_used[idx] = new_used
+                                stack_length[idx] = new_len
                                 top += 1
 
                 else:
                     # move along column
                     for r in range(n):
                         if not used[r, last_c]:
-                            new_len = curr_len + 1
+                            new_len = next_step
 
                             new_path = path.copy()
-                            new_path[curr_len] = (r, last_c)
+                            new_path[curr_len, 0] = r
+                            new_path[curr_len, 1] = last_c
                             new_buff = buff.copy()
                             new_buff[curr_len] = matrix[r, last_c]
                             new_used = used.copy()
@@ -239,63 +242,27 @@ class BruteSolver(Solver):
                                             new_activ[i] = True
                                             new_score += d_costs[i]
 
-                            if not to_prune:
-                                do_push = True
-                            else:
+                            if to_prune:
                                 rem = 0
                                 for i in range(num_demons):
                                     if not new_activ[i]:
                                         rem += d_costs[i]
                                 do_push = (new_score + rem > best_score)
+                            else:
+                                do_push = True
 
                             if do_push:
                                 idx = top
-                                stack[idx]['path'] = new_path
-                                stack[idx]['buff'] = new_buff
-                                stack[idx]['activ'] = new_activ
-                                stack[idx]['score'] = new_score
-                                stack[idx]['used'] = new_used
-                                stack[idx]['length'] = new_len
+                                stack_path[idx] = new_path
+                                stack_buff[idx] = new_buff
+                                stack_activ[idx] = new_activ
+                                stack_score[idx] = new_score
+                                stack_used[idx] = new_used
+                                stack_length[idx] = new_len
                                 top += 1
 
         return best_path[:best_path_length], best_score
 
-
-
-
-
-
-
-
-# if __name__ == '__main__':
-#     from core import solution_print
-#
-#     matrix1 = np.array([
-#         [3, 1, 5, 5, 3, 5, 2],
-#         [5, 6, 2, 2, 5, 5, 1],
-#         [5, 5, 4, 2, 6, 5, 2],
-#         [1, 2, 1, 3, 2, 2, 1],
-#         [1, 5, 2, 4, 6, 6, 4],
-#         [3, 1, 3, 5, 5, 2, 3],
-#         [3, 5, 1, 5, 6, 3, 2],
-#     ], dtype='int8')
-#
-#     demons1 = (
-#         np.array([1, 2], dtype='int8'),
-#         np.array([3, 4], dtype='int8'),
-#         np.array([5, 1, 2], dtype='int8')
-#     )
-#     d_costs1 = np.array([1, 2, 3], dtype='int8')
-#     buffer_size1 = 8
-#
-#     task1 = Task(matrix1, demons1, d_costs1, buffer_size1)
-#
-#     solver1 = BruteSolver()
-#
-#
-#     sol1 = solver1(task1)
-#
-#     solution_print(task1, sol1)
 
 
 
