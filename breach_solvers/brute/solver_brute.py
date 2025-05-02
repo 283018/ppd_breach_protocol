@@ -1,7 +1,7 @@
 from breach_solvers.solvers_protocol import Solver, register_solver
 from core import Task, Solution
 
-from numpy import ndarray, integer, array, zeros, empty, full, dtype
+from numpy import ndarray, integer, int8, int16, bool_, array, zeros, empty, full, dtype
 from multiprocessing import Pool, cpu_count
 from functools import partial
 from typing import Tuple
@@ -34,7 +34,6 @@ class BruteSolver(Solver):
         n_demons = d_lengths.size
         max_demon_len = d_lengths.max()
 
-        # TODO: use it ig
         padded_demons = full((n_demons, max_demon_len), -1)
         for i, d in enumerate(demons):
             padded_demons[i, :d_lengths[i]] = d
@@ -51,15 +50,15 @@ class BruteSolver(Solver):
         with Pool(processes=process_num) as pool:
             worker = partial(self._process_start_column,
                              matrix=matrix,
-                             demons=demons,
+                             demons_array=padded_demons,
                              demons_lengths=d_lengths,
-                             d_costs=d_costs,
+                             demons_costs=d_costs,
                              buffer_size=buffer_s,
                              n=n,
                              max_score=max_score,
                              num_demons=n_demons,
-                             stack_size=init_stack_size,
-                             to_prune=to_prune,
+                             init_stack_size=init_stack_size,
+                             enable_pruning=to_prune,
                              )
 
             results = pool.map(worker, range(n))
@@ -68,7 +67,7 @@ class BruteSolver(Solver):
         # Znajduje najlepszy wynik ze wszystkich startowych kolumn
         ic(results)
         best_score = 0
-        best_path = None
+        best_path = empty((0, 2), dtype=bool_)
         for path, score in results:
             if score > best_score or (score == best_score and path.shape[0] < best_path.shape[0]):
                 best_score = score
@@ -78,188 +77,168 @@ class BruteSolver(Solver):
 
 
     @staticmethod
-    # @njit
-    def _process_start_column(start_col,  # starting column (setted by multiprocessing)
-                              matrix: ndarray, demons: Tuple[ndarray], demons_lengths: ndarray, d_costs: ndarray, buffer_size: int | integer,  # specs of task itself
-                              n: int, max_score: int, num_demons: int,  # pre-calculated parameters
-                              stack_size,
-                              to_prune: bool,
-                              ) -> Tuple[ndarray, integer]:
-        # TODO: max stack instead of 100
+    @njit
+    def _process_start_column(start_col, matrix: ndarray, demons_array: ndarray, demons_lengths: ndarray,
+                              demons_costs: ndarray, buffer_size: int|integer, n:int, max_score: int, num_demons: int,
+                              init_stack_size, enable_pruning: bool, ):
+        """
+        Process 1 possible starting position - matrix[0, start_col], then explore possible solution (DFS search) with optional pruning
+        :param start_col: index of column to start from
+        :param matrix: Task.matrix
+        :param demons_array: Task.demons as 2d array padded with -1
+        :param demons_lengths: lengths of demons
+        :param demons_costs: Task.demons_costs
+        :param buffer_size: Task.buffer_size
+        :param n: size of matrix
+        :param max_score: max possible score ≡ d_costs.sum()
+        :param num_demons: number of demons ≡ demons_array.shape[0] ≡ len(Task.demons)
+        :param init_stack_size: init stack size
+        :param enable_pruning: same as in __call__
+        :return: tuple; path found in current branch, score from path
+        """
 
-        max_stack = stack_size
+        # Basically just manual implementation of stack using parallel arrays
+        # pre-allocating parallel arrays
+        max_stack = init_stack_size
+        stack_path = empty((max_stack, buffer_size, 2), dtype=int8)
+        stack_buff = empty((max_stack, buffer_size), dtype=int8)
+        stack_activ = empty((max_stack, num_demons), dtype=bool_)
+        stack_score = empty(max_stack, dtype=int16)
+        stack_used = empty((max_stack, n, n), dtype=bool_)
+        stack_length = empty(max_stack, dtype=int8)
 
-        stack_path = empty((max_stack, buffer_size, 2), dtype='int8')
-        stack_buff = empty((max_stack, buffer_size), dtype='int8')
-        stack_activ = empty((max_stack, num_demons), dtype='bool_')
-        stack_score = empty(max_stack, dtype='int16')
-        stack_used = empty((max_stack, n, n), dtype='bool_')
-        stack_length = empty(max_stack, dtype='int8')
-
+        # tracking of best solution
         best_score = 0
-        best_path = full((buffer_size, 2), -1, dtype='int8')
+        best_path = empty((buffer_size, 2), dtype=int8); best_path[:] = -1
         best_path_length = 0
 
+        # starting position
         start_r, start_c = 0, start_col
         start_symbol = matrix[start_r, start_c]
 
-        # boolean array instead of bitmask
-        used0 = zeros((n, n), dtype='bool_')
-        used0[start_r, start_c] = True
+        # boolean array as mask to mark used cells
+        used_init = zeros((n, n), dtype=bool_)
+        used_init[start_r, start_c] = True
 
-        activ0 = zeros(num_demons, dtype='bool_')
-        current_score0 = 0
+        # initial markers for demons activations
+        active_init = zeros(num_demons, dtype=bool_)
+        score_init = 0
+        for d in range(num_demons):
+            if demons_lengths[d] == 1 and demons_array[d, 0] == start_symbol:
+                active_init[d] = True
+                score_init += demons_costs[d]
 
-        # sprawdzenie na demonów długości 1
-        for i in range(num_demons):
-            if demons_lengths[i] == 1 and demons[i][0] == start_symbol:
-                activ0[i] = True
-                current_score0 += d_costs[i]
+        # initial path and buffer sequence
+        path_init = empty((buffer_size, 2), dtype=int8); best_path[:] = -1
+        path_init[0, 0] = start_r
+        path_init[0, 1] = start_c
+        buffer_init = empty(buffer_size, dtype=int8);   buffer_init[:] = -1
+        buffer_init[0] = start_symbol
+        length_init = 1
 
-        path0 = full((buffer_size, 2), -1, dtype='int8')
-        path0[0, 0] = start_r
-        path0[0, 1] = start_c
+        # pushing initial values onto stack
+        pointer = 0
+        stack_path[pointer] = path_init
+        stack_buff[pointer] = buffer_init
+        stack_activ[pointer] = active_init
+        stack_score[pointer] = score_init
+        stack_used[pointer] = used_init
+        stack_length[pointer] = length_init
+        pointer += 1
 
-        buff0 = full(buffer_size, -1, dtype='int8')
-        buff0[0] = start_symbol
-        length0 = 1
-
-        # Basically manual stack implementation by bundled parallel pre-allocated arrays
-        # Setting first elements on stack
-        top = 0
-        stack_path[top] = path0
-        stack_buff[top] = buff0
-        stack_activ[top] = activ0
-        stack_score[top] = current_score0
-        stack_used[top] = used0
-        stack_length[top] = length0
-        top += 1
-
-        while top > 0:
-            top -= 1
+        # dfs search over all possible (correct) next moves
+        while pointer > 0:
+            pointer -= 1
 
             # pop from stack
-            path = stack_path[top]
-            buff = stack_buff[top]
-            activ = stack_activ[top]
-            score = stack_score[top]
-            used = stack_used[top]
-            curr_len = stack_length[top]
+            path = stack_path[pointer]
+            buffer = stack_buff[pointer]
+            active = stack_activ[pointer]
+            curr_score = stack_score[pointer]
+            used_mask = stack_used[pointer]
+            curr_leng = stack_length[pointer]
 
-            if score > best_score:
-                if curr_len <= buffer_size:
-                    best_score = score
-                    best_path_length = curr_len
-                    for i in range(curr_len):
-                        best_path[i, 0] = path[i, 0]
-                        best_path[i, 1] = path[i, 1]
+            # updating best path if this solution is better
+            if curr_score > best_score:
+                if curr_leng <= buffer_size:
+                    best_score = curr_score
+                    best_path_length = curr_leng
+                    for d in range(curr_leng):
+                        best_path[d, 0] = path[d, 0]
+                        best_path[d, 1] = path[d, 1]
+                    # express exit if best possible score achieved (also pruning of some kind but necessary one)
                     if best_score == max_score:
                         return best_path[:best_path_length], best_score
 
-            # push children if can grow
-            if curr_len < buffer_size:
-                next_step = curr_len + 1
-                last_r = path[curr_len - 1, 0]
-                last_c = path[curr_len - 1, 1]
+            # if path can be extended
+            if curr_leng < buffer_size:
+                next_step = curr_leng + 1
+                last_r = path[curr_leng - 1, 0]
+                last_c = path[curr_leng - 1, 1]
 
-                if (next_step & 1) == 1:  # synonymic to next_step % 2 == 1
-                    for c in range(n):
-                        if not used[last_r, c]:
-                            new_len = next_step
-
-                            # copy-on-write arrays
-                            new_path = path.copy()
-                            new_path[curr_len, 0] = last_r
-                            new_path[curr_len, 1] = c
-                            new_buff = buff.copy()
-                            new_buff[curr_len] = matrix[last_r, c]
-                            new_used = used.copy()
-                            new_used[last_r, c] = True
-                            new_activ = activ.copy()
-                            new_score = score
-
-                            # check demons
-                            for i in range(num_demons):
-                                if not new_activ[i]:
-                                    k = demons_lengths[i]
-                                    if new_len >= k:
-                                        match = True
-                                        # check last k symbols
-                                        for j in range(k):
-                                            if new_buff[new_len - k + j] != demons[i][j]:
-                                                match = False
-                                                break
-                                        if match:
-                                            new_activ[i] = True
-                                            new_score += d_costs[i]
-
-                            # pruning
-                            if to_prune:
-                                rem = 0
-                                for i in range(num_demons):
-                                    if not new_activ[i]:
-                                        rem += d_costs[i]
-                                do_push = (new_score + rem > best_score)
-                            else:
-                                do_push = True
-
-                            if do_push:
-                                idx = top
-                                stack_path[idx] = new_path
-                                stack_buff[idx] = new_buff
-                                stack_activ[idx] = new_activ
-                                stack_score[idx] = new_score
-                                stack_used[idx] = new_used
-                                stack_length[idx] = new_len
-                                top += 1
-
+                # row/column alternation setting
+                if next_step % 2 == 1:
+                    row_fixed, col_fixed = last_r, False
                 else:
-                    # move along column
-                    for r in range(n):
-                        if not used[r, last_c]:
-                            new_len = next_step
+                    row_fixed, col_fixed = False, last_c
 
-                            new_path = path.copy()
-                            new_path[curr_len, 0] = r
-                            new_path[curr_len, 1] = last_c
-                            new_buff = buff.copy()
-                            new_buff[curr_len] = matrix[r, last_c]
-                            new_used = used.copy()
-                            new_used[r, last_c] = True
-                            new_activ = activ.copy()
-                            new_score = score
+                iterator = range(n)
+                for idx in iterator:
+                    r = last_r if col_fixed else idx
+                    c = idx if col_fixed else last_c
 
-                            for i in range(num_demons):
-                                if not new_activ[i]:
-                                    k = demons_lengths[i]
-                                    if new_len >= k:
-                                        match = True
-                                        for j in range(k):
-                                            if new_buff[new_len - k + j] != demons[i][j]:
-                                                match = False
-                                                break
-                                        if match:
-                                            new_activ[i] = True
-                                            new_score += d_costs[i]
 
-                            if to_prune:
-                                rem = 0
-                                for i in range(num_demons):
-                                    if not new_activ[i]:
-                                        rem += d_costs[i]
-                                do_push = (new_score + rem > best_score)
-                            else:
-                                do_push = True
+                    if not used_mask[r, c]:
+                        # preparing new frames (copying current)
+                        #TODO: thouse copyies looks shady
+                        new_path = path.copy()
+                        new_buff = buffer.copy()
+                        new_used = used_mask.copy()
+                        new_activ = active.copy()
+                        new_score = curr_score
 
-                            if do_push:
-                                idx = top
-                                stack_path[idx] = new_path
-                                stack_buff[idx] = new_buff
-                                stack_activ[idx] = new_activ
-                                stack_score[idx] = new_score
-                                stack_used[idx] = new_used
-                                stack_length[idx] = new_len
-                                top += 1
+                        # new cell
+                        new_path[curr_leng, 0] = r
+                        new_path[curr_leng, 1] = c
+                        new_buff[curr_leng] = matrix[r, c]
+                        new_used[r, c] = True
+                        new_len = next_step
+
+                        # current demons matching
+                        for d in range(num_demons):
+                            if not new_activ[d]:
+                                k = demons_lengths[d]
+                                if new_len >= k:
+                                    match = True
+                                    for j in range(k):
+                                        if new_buff[new_len - k + j] != demons_array[d, j]:
+                                            match = False
+                                            break
+                                    if match:
+                                        new_activ[d] = True
+                                        new_score += demons_costs[d]
+
+                        # B&B pruning
+                        if enable_pruning:
+                            rem = 0
+                            for d in range(num_demons):
+                                if not new_activ[d]:
+                                    rem += demons_costs[d]
+                            do_push = (new_score + rem > best_score)
+                        else:
+                            do_push = True
+
+                        # puch children onto stack
+                        if do_push:
+                            idx = pointer
+                            stack_path[idx] = new_path
+                            stack_buff[idx] = new_buff
+                            stack_activ[idx] = new_activ
+                            stack_score[idx] = new_score
+                            stack_used[idx] = new_used
+                            stack_length[idx] = new_len
+                            pointer += 1
+
 
         return best_path[:best_path_length], best_score
 
