@@ -8,62 +8,43 @@ from typing import Tuple
 from numba import njit, prange, threading_layer
 
 
+from icecream import ic
+
+
 @register_solver('brute')
 class BruteSolver(Solver):
     _allowed_kwargs = {'to_prune':bool, "forced_mode":bool|None}
     _initialized:bool = False
 
-    # noinspection PyProtocol
-    # (pycharm bug)
-    def __init__(self) -> None:
-        # self._warm_up()
-        self._initialized = True
 
     def _warm_up(self) -> None:
         """
         Since that solver utilize numba just-in-time compiler with no-python mode it requires time to compile on first run,
         to avoid skewing time measurements on creating solver instance __init__ run "blank shot", later compiled scripts cashed by numba by default
-        Run with dummy values for both parallel and sequential solvers.
-        Avg tims of warmup:
-            Only parallel: 9.490613 sec
-            Only sequential: 4.465631 sec
-            Both: 9.966198 sec
+        Runed beforehand with dummy values.
+        Avg time of warmup: ~13.4906s
+        Avg time of real solving for dummy task: ~0.0240442s
         """
-        # n = 8
-        # dummy_input = dict(
-        #     matrix=array([i + 1 for i in range(n * n)], dtype=int8).reshape(n, n),
-        #     demons_array=array([[i + 1 for i in range(2 * n)]], dtype=int8).reshape(2, n),
-        #     demons_lengths=array([n, n], dtype=int8),
-        #     demons_costs=array([1, 1], dtype=int16),
-        #     buffer_size=n,
-        #     n=n,
-        #     max_score=2,
-        #     num_demons=2,
-        #     init_stack_size=100,
-        #     enable_pruning=True,
-        # )
-        dummy_input = dict(
+        print(f"\rBrute-force solver warmup...", flush=True)
+        dummy_task = Task(
             matrix=array([[1, 2], [3, 4]], dtype=int8),
-            demons_array=array([[1, 3]], dtype=int8),
-            demons_lengths=array([2], dtype=int8),
-            demons_costs=array([1], dtype=int16),
-            buffer_size=1,
-            n=2,
-            max_score=1,
-            num_demons=1,
-            init_stack_size=10,
-            enable_pruning=True,
-        )
+            demons=(array([1, 3], dtype=int8),),
+            demons_costs=array([1], dtype=int8),
+            buffer_size=1,)
         try:
+            self._initialized = True
+
             start_init = perf_counter()
-            sol1 = self._process_all_columns(**dummy_input, enable_parallel=True),
-            sol2 = self._process_all_columns(**dummy_input, enable_parallel=False)
+            self.__call__(dummy_task, to_prune=True, forced_mode=True)
+            # self.__call__(dummy_task, to_prune=True, forced_mode=False)
+            # self.__call__(dummy_task, to_prune=False, forced_mode=True)
+            # self.__call__(dummy_task, to_prune=False, forced_mode=False)
             end_init = perf_counter()
         except Exception as e:
-            print(f"Error while initialization occurred:\n{e}")
+            self._initialized = False
+            raise RuntimeError(f"Error while initialization brute-force solver occurred: {e}") from e
         else:
-            self._initialized = True
-            print(f"Successfully initialized brute-force solver in {end_init-start_init:.3} sec")
+            print(f"\rSuccessfully initialized brute-force solver in {end_init-start_init:.4} sec", flush=True)
 
     def __call__(self, task:Task, **kwargs) -> Tuple[Solution, float]:
         """
@@ -74,7 +55,6 @@ class BruteSolver(Solver):
                 - forced_mode: default None, None - auto decision of mode, True - forced parallel, False - sequential
         :return: instance of Solution
         """
-        print(self._initialized)
         if not self._initialized:
             self._warm_up()
         self._validate_kwargs(kwargs)
@@ -99,14 +79,14 @@ class BruteSolver(Solver):
         for i, d in enumerate(demons):
             padded_demons[i, :d_lengths[i]] = d
 
-        # TODO: not-constant
-        init_stack_size = 100
+        #! TODO: not-constant
+        init_stack_size = 200
         if forced_mode is None:
             parallel = True
-            print(f'!!!parallel auto: {parallel}')
+            # print(f'!!!parallel auto: {parallel}')
         else:
             parallel = forced_mode
-            print(f'!!!parallel manually: {parallel}')
+            # print(f'!!!parallel manually: {parallel}')
 
         # calling main solver method
         time_start = perf_counter()
@@ -329,6 +309,7 @@ def _process_column(start_col, matrix: ndarray, demons_array: ndarray, demons_le
                         #! TODO: get that logger already
                         if pointer >= max_stack:
                             print(f"! Stack overflow: max_stack={max_stack}, pointer={pointer}")
+                            # raise StopIteration("Stack overflow")
                             break
 
 

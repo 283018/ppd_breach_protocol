@@ -1,5 +1,4 @@
-from numpy.random import Generator
-from numpy import ndarray, integer, fromiter
+from numpy import ndarray, integer, int8, fromiter
 from typing import Tuple
 
 from .bp_generator import BPGen, register_generator
@@ -24,8 +23,8 @@ class GeneratorCosts(BPGen):
             low, high = -dev, dev
 
         amo = len(demons)
-        costs = self.rng.integers(low, high, size=amo, dtype='int8', endpoint=True)
-        costs += fromiter((arr.size for arr in demons), dtype='int8') * 2
+        costs = self.rng.integers(low, high, size=amo, dtype=int8, endpoint=True)
+        costs += fromiter((arr.size for arr in demons), dtype=int8) * 2
 
         return costs
 

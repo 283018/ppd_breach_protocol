@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from numpy import ndarray, zeros, integer
+from numpy import ndarray, integer, int8, zeros
 from numpy.lib.stride_tricks import sliding_window_view
 from typing import Optional
 
@@ -34,7 +34,7 @@ class Solution:
             pass    # TODO: logs & warnings (or maybe counting)
         else:
             if path.ndim != 2 or path.shape[1] != 2:
-                raise ValueError("non-empty path must be 2D array with shape (n, 2)")
+                raise ValueError("non-empty path must be 2d array with shape (n, 2)")
         if buffer_sequence is not None:
             if not isinstance(buffer_sequence, ndarray) or buffer_sequence.ndim != 1:
                 raise ValueError("buffer_sequence must be 1d ndarray")
@@ -55,7 +55,7 @@ class Solution:
         """
         if self.buffer_sequence is None:
             path = self.path
-            buffer = zeros(from_task.buffer_size, dtype='int8')
+            buffer = zeros(from_task.buffer_size, dtype=int8)
 
             buffer[:path.shape[0]] = from_task.matrix[path[:, 0], path[:, 1]]
 

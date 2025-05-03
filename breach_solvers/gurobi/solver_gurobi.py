@@ -1,7 +1,7 @@
 from breach_solvers.solvers_protocol import Solver, register_solver
 from core import Task, Solution
 
-from numpy import array, zeros, dot
+from numpy import int8, array, zeros, dot
 from time import perf_counter
 
 import gurobipy as gp
@@ -20,12 +20,10 @@ import gurobipy as gp
 # ================================================================
 
 
+# TODO: separate method + init log
 @register_solver('gurobi')
 class SolverGurobi(Solver):
-    def _validate_kwargs(self, kwargs):
-        if kwargs:
-            raise TypeError(f"This solver does not support any additional arguments: {', '.join(kwargs)}")
-
+    _allowed_kwargs = {}
 
     # pycharm cant reed types from dataclasses and struggling with gurobi :/
     # noinspection PyTypeChecker
@@ -155,7 +153,7 @@ class SolverGurobi(Solver):
 
 
         # result extraction
-        x_path = array([(i, j) for t in range(buffer_size) for i in range(n) for j in range(n) if x[i, j, t].x > 0.5], dtype='int8')
+        x_path = array([(i, j) for t in range(buffer_size) for i in range(n) for j in range(n) if x[i, j, t].x > 0.5], dtype=int8)
 
         buffer_nums = array([int(buffer_seq[t].getValue()) for t in range(buffer_size)])
 

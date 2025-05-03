@@ -1,4 +1,4 @@
-from numpy import array
+from numpy import array, int8
 
 
 # File: core/base_setup.py
@@ -21,8 +21,8 @@ HEX_MAP_REVERSE = {v: k for k, v in HEX_MAP.items()}
 base_keys = [k for k in HEX_MAP if 1 <= k <= 6]     # base keys (1-6)
 dlc_keys = [k for k in HEX_MAP if 7 <= k <= 11]     # dlc keys (7-11)
 
-BASE_INTS = array(base_keys, dtype='int8')
-DLC_INTS = array(dlc_keys, dtype='int8')
+BASE_INTS = array(base_keys, dtype=int8)
+DLC_INTS = array(dlc_keys, dtype=int8)
 
 BASE_HEXS = array([HEX_MAP[k] for k in base_keys], dtype='<U2')
 DLC_HEXS = array([HEX_MAP[k] for k in dlc_keys], dtype='<U2')

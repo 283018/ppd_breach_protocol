@@ -81,6 +81,7 @@ def mat_print(matrix, path=None) -> None:
 
 
 # TODO: just for task, just for solution
+# TODO: maybe prettytable?
 def solution_print(task, solution, translate:bool=False) -> None:
     """
     Print given Task and Solution in console.

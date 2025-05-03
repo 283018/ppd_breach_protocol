@@ -11,9 +11,9 @@ class Task:
     Represents single task for breach protocol minigame.
 
     matrix: ndarray[ndarray(dtype=int8)] |
-    buffer_size: [int|int8] |
     demons: Tuple[ndarray(dtype=int8)] |
     demons_costs: ndarray(dtype=int8) |
+    buffer_size: [int|int8] |
     """
     matrix: ndarray
     demons: Tuple[ndarray, ...]

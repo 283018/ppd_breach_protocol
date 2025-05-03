@@ -1,6 +1,5 @@
-from numpy import array, ndarray, zeros, integer
+from numpy import ndarray, int8, zeros, integer
 from numpy.random import Generator, SeedSequence, default_rng, PCG64
-from typing import Tuple
 
 from .breach_generator import BPGen
 from core import Task
@@ -47,7 +46,7 @@ class TaskFactory:
             raise ValueError(f"invalid mode must be on of {TASK_MODES}")
 
         size = 0
-        demon_specs = zeros(10, dtype='int8')
+        demon_specs = zeros(10, dtype=int8)
         buffer_length = 0
         mat_mode = 0
 
@@ -120,7 +119,7 @@ class TaskFactory:
                     mat_mode = 0
 
             # demons specs
-            demon_specs = zeros(10, dtype='int8')
+            demon_specs = zeros(10, dtype=int8)
             selected_lengths = self.rng.choice(available_lengths,
                                                size=min(num_selected, len(available_lengths)),
                                                replace=False)
@@ -160,7 +159,8 @@ class TaskFactory:
 
     def gen_manual(self, matrix_size:int, demons_specs:dict|ndarray, buffer_size:int, matrix_mode:int=0) -> Task:
         """
-        Manually generates Task according to given parameters
+        Manually generates Task according to given parameters.
+        Does not verify inputs, delegate that to generators
         :param matrix_size:
         :param demons_specs:
         :param buffer_size:
@@ -177,41 +177,41 @@ class TaskFactory:
 
 
 
-if __name__ == "__main__":
-    from breach_solvers import SolverGurobi
-    from core import solution_print
-    from time import time, perf_counter
-
-    factory = TaskFactory(42)
-    gb_solver = SolverGurobi()
-
-    task_gen_times = []
-    solve_times = []
-    for i in range(10):
-        start_task_gen = perf_counter()
-        task1 = factory()
-        end_task_gen = perf_counter()
-
-        task_gen_time = end_task_gen - start_task_gen
-        task_gen_times.append(task_gen_time)
-
-        start_solve = perf_counter()
-        sol1 = gb_solver.solve(task1)
-        end_solve = perf_counter()
-
-        solve_time = end_solve - start_solve
-        solve_times.append(solve_time)
-
-        # solution_print(task1, sol1)
-        # print('\n'*3)
-
-    print("gen_times:")
-    print([f"{t:.6f}" for t in task_gen_times])
-    print("\nsol_times:")
-    print([f"{t:.6f}" for t in solve_times])
-
-    avg_task_gen_time = sum(task_gen_times) / len(task_gen_times)
-    avg_solve_time = sum(solve_times) / len(solve_times)
-
-    print(f"avg gen: {avg_task_gen_time:.6f} s")
-    print(f"avg sol: {avg_solve_time:.6f} s")
+# if __name__ == "__main__":
+#     from breach_solvers import SolverGurobi
+#     from core import solution_print
+#     from time import time, perf_counter
+#
+#     factory = TaskFactory(42)
+#     gb_solver = SolverGurobi()
+#
+#     task_gen_times = []
+#     solve_times = []
+#     for i in range(10):
+#         start_task_gen = perf_counter()
+#         task1 = factory()
+#         end_task_gen = perf_counter()
+#
+#         task_gen_time = end_task_gen - start_task_gen
+#         task_gen_times.append(task_gen_time)
+#
+#         start_solve = perf_counter()
+#         sol1 = gb_solver.solve(task1)
+#         end_solve = perf_counter()
+#
+#         solve_time = end_solve - start_solve
+#         solve_times.append(solve_time)
+#
+#         # solution_print(task1, sol1)
+#         # print('\n'*3)
+#
+#     print("gen_times:")
+#     print([f"{t:.6f}" for t in task_gen_times])
+#     print("\nsol_times:")
+#     print([f"{t:.6f}" for t in solve_times])
+#
+#     avg_task_gen_time = sum(task_gen_times) / len(task_gen_times)
+#     avg_solve_time = sum(solve_times) / len(solve_times)
+#
+#     print(f"avg gen: {avg_task_gen_time:.6f} s")
+#     print(f"avg sol: {avg_solve_time:.6f} s")
