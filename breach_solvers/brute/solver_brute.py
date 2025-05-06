@@ -52,8 +52,8 @@ class BruteSolver(Solver):
                 - to_prune: default True: enable pruning
         :return: instance of Solution
         """
-        # if not self._initialized:
-        #     self._warm_up()
+        if not self._initialized:
+            self._warm_up()
         self._validate_kwargs(kwargs)
         enable_pruning = kwargs.get("to_prune", True)
 
@@ -75,8 +75,9 @@ class BruteSolver(Solver):
         for i, d in enumerate(demons):
             padded_demons[i, :d_lengths[i]] = d
 
-        #! TODO: not-constant
-        init_stack_size = 100
+        # linear approximation, definitely works for up to 12x12 matrix and 12 buffer_size
+        init_stack_size = int((n*buffer_s)*0.75) + 1
+        # init_stack_size = 100
 
         start = perf_counter()
         paths, scores, lengths = self._process_all_columns(
@@ -218,8 +219,6 @@ def _process_column(start_col, matrix: ndarray, demons_array: ndarray, demons_le
     while pointer > 0:
         pointer -= 1
 
-        stack_observed_max = max(stack_observed_max, pointer)
-
         # pop from stack
         path = stack_path[pointer]
         buffer = stack_buff[pointer]
@@ -227,6 +226,8 @@ def _process_column(start_col, matrix: ndarray, demons_array: ndarray, demons_le
         curr_score = stack_score[pointer]
         used_mask = stack_used[pointer]
         curr_leng = stack_length[pointer]
+
+        stack_observed_max = max(stack_observed_max, pointer)
 
         # updating best path if this solution is better
         if curr_score > best_score:
@@ -236,7 +237,7 @@ def _process_column(start_col, matrix: ndarray, demons_array: ndarray, demons_le
                 for d in range(curr_leng):
                     best_path[d, 0] = path[d, 0]
                     best_path[d, 1] = path[d, 1]
-                # express exit if best possible score achieved (also pruning of some kind but necessary one)
+                # express exit if best possible score achieved
                 if enable_pruning and (best_score == max_score):
                     return best_path, best_score, best_path_length
 
@@ -317,7 +318,5 @@ def _process_column(start_col, matrix: ndarray, demons_array: ndarray, demons_le
                         stack_length[idx] = new_len
                         pointer += 1
 
-    print((n, buffer_size, stack_observed_max))
-
+    # print((n, buffer_size, stack_observed_max))
     return best_path, best_score, best_path_length
-    # return n, buffer_size, max(stacks)

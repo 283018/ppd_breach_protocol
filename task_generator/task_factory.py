@@ -9,7 +9,25 @@ TASK_MODES = set(range(-3, 5))
 
 class TaskFactory:
     """
-    Factory for Task.
+    Factory for Task, callable object.
+
+    For __call__ supports mode parameter:
+        -3: varying complication of tasks (easy)
+
+        -2: varying complication of tasks (medium)
+
+        -1: varying complication of tasks (hard)
+
+        0: default, high deviation for varying complication of tasks
+
+        1: setted size and lengths, similar to base game bp (easy)
+
+        2: setted size and lengths (medium)
+
+        3: setted size and lengths (hard)
+
+        4: setted size and lengths (very hard)
+
     :param seed: optional, seed for main rng, rest derived from it.
     """
 
@@ -29,7 +47,6 @@ class TaskFactory:
     def __call__(self, mode: int = 0) -> Task:
         """
         Main generator function.
-        :rtype: Task
         :param mode: generation mode
                     -3: varying complication of tasks (easy)
                     -2: varying complication of tasks (medium)
@@ -40,6 +57,7 @@ class TaskFactory:
                     3: setted size and lengths (hard)
                     4: setted size and lengths (very hard)
         :return: Task instance
+        :rtype: Task
         """
 
         if mode not in TASK_MODES:
@@ -157,14 +175,28 @@ class TaskFactory:
 
         return Task(matrix, demons, costs, buffer_length)
 
+
     def gen_manual(self, matrix_size:int, demons_specs:dict|ndarray, buffer_size:int, matrix_mode:int=0) -> Task:
         """
         Manually generates Task according to given parameters.
-        Does not verify inputs, delegate that to generators
+
+        Does not verify inputs, delegate that to generators.
+
+        Matrix mode description & recommended size:
+            0: simulates standard minigame, uses only base game symbols with equal chances; [3-6]
+
+            1: simulates dlc minigame, uses mostly dlc symbols, with small chances for base game symbols; [5-8]
+
+            2: uses full set (base + dlc), slowly decrease chances of appearing for each new symbol, add step for dlc; [6-12]
+
+            3: uses full set with equal chances for all; (>10)
+
+            4:"good luck xD"; not recommended
+
         :param matrix_size:
-        :param demons_specs:
+        :param demons_specs: dict(length:count) | ndarray[i] = count of len i
         :param buffer_size:
-        :param matrix_mode:
+        :param matrix_mode: (copied from GeneratorMatrix)
         :return: Task instance
         """
         matrix = self.mat_gen(matrix_size, matrix_mode)
@@ -177,7 +209,9 @@ class TaskFactory:
 
 
 
-# if __name__ == "__main__":
+if __name__ == "__main__":
+    t = TaskFactory(123123)
+    t.gen_manual()
 #     from breach_solvers import SolverGurobi
 #     from core import solution_print
 #     from time import time, perf_counter

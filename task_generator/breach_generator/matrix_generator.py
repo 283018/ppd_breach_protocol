@@ -6,6 +6,26 @@ from .bp_generator import BPGen, register_generator
 
 @register_generator('matrix')
 class GeneratorMatrix(BPGen):
+    """
+    Callable object that generates tasks according to given parameters.
+    __call__ args:
+
+    size: size of square matrix
+
+    mode: generation mode (determines symbol sets and frequency) & recommended size:
+        0: simulates standard minigame, uses only base game symbols with equal chances; [3-6]
+
+        1: simulates dlc minigame, uses mostly dlc symbols, with small chances for base game symbols; [5-8]
+
+        2: uses full set (base + dlc), slowly decrease chances of appearing for each new symbol, add step for dlc; [6-12]
+
+        3: uses full set with equal chances for all; (>10)
+
+        4: "good luck xD"; not recommended
+
+    return: square matrix as nested 2d list
+    """
+
     def __call__(self, size:int, mode:int=0) -> ndarray:
         """
         Generates breach protocol matrix of integer coded symbols.
