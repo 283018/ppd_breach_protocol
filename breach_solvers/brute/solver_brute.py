@@ -136,7 +136,7 @@ class BruteSolver(Solver):
         # with Pool(min(cpu_count(), n)) as pool:
         #     results = pool.starmap(_process_column, args)  # Directly call _process_column
         #
-        # # Unpack results
+        # # unpack results
         # for col, (path_full, score, length) in enumerate(results):
         #     paths[col, :length] = path_full[:length]
         #     scores[col] = score
@@ -148,7 +148,7 @@ class BruteSolver(Solver):
 @njit(cache=True)
 def _process_column(start_col, matrix: ndarray, demons_array: ndarray, demons_lengths: ndarray,
                     demons_costs: ndarray, buffer_size: int|integer, n:int, max_score: int, num_demons: int,
-                    init_stack_size, enable_pruning: bool|bool_):
+                    init_stack_size:int, enable_pruning: bool|bool_):
     """
     Process 1 possible starting position - matrix[0, start_col], then explore possible solution (DFS search) with optional pruning
     :param start_col: index of column to start from
