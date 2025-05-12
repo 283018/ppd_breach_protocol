@@ -10,6 +10,8 @@ __pycache__/
 .pyc
 
 
+**/_test.py
+
 
 /*.py
 !/main.py
