@@ -9,5 +9,6 @@ idea/
 __pycache__/
 
 # internal testing
-/_test.py
+_test.py
 plot.py
+timers.py
