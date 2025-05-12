@@ -19,15 +19,9 @@ class BruteSolver(Solver):
 
     def _warm_up(self) -> None:
         """
-        Stays unused now.
-
-        Since that solver utilize numba just-in-time compiler with no-python mode it requires time to compile on first run,
-        to avoid skewing time measurements on creating solver instance __init__ run "blank shot", later compiled scripts cashed by numba by default
         Runed beforehand with dummy values.
-        Avg time of warmup: ~13.4906s
-        Avg time of real solving for dummy task: ~0.0240442s
         """
-        print(f"\rBrute-force solver warmup...", flush=True)
+        # print(f"\rBrute-force solver warmup...", flush=True)
         dummy_task = Task(
             matrix=array([[1, 2], [3, 4]], dtype=int8),
             demons=(array([1, 3], dtype=int8),),
@@ -54,8 +48,8 @@ class BruteSolver(Solver):
                 - to_prune: default True: enable pruning
         :return: instance of Solution
         """
-        # if not self._initialized:
-        #     self._warm_up()
+        if not self._initialized:
+            self._warm_up()
         self._validate_kwargs(kwargs)
         enable_pruning = kwargs.get("to_prune", True)
         avoid_c_back = kwargs.get("avoid_c", False)

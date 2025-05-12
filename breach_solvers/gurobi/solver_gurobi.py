@@ -22,7 +22,7 @@ import gurobipy as gp
 
 # TODO: separate method + init log
 @register_solver('gurobi')
-class SolverGurobi(Solver):
+class GurobiSolver(Solver):
     _allowed_kwargs = {}
 
     # pycharm cant reed types from dataclasses and struggling with gurobi :/
