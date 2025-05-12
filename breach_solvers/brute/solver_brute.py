@@ -1,24 +1,27 @@
 from breach_solvers.solvers_protocol import Solver, register_solver
 from core import Task, Solution
+from .breach_solver_back import solve_breach
 
 from numpy import ndarray, integer, int8, int16, bool_, array, zeros, empty
 from time import perf_counter
 from typing import Tuple
 
 from numba import njit, prange
-# from multiprocessing import Pool, cpu_count
 
 # from icecream import ic
 
 
 @register_solver('brute')
 class BruteSolver(Solver):
-    _allowed_kwargs = {'to_prune':bool, "forced_mode":bool|None}
+    _allowed_kwargs = {'to_prune':bool, 'avoid_c':bool}
     _initialized:bool = False
 
 
     def _warm_up(self) -> None:
         """
+        Deprecated.
+
+
         Since that solver utilize numba just-in-time compiler with no-python mode it requires time to compile on first run,
         to avoid skewing time measurements on creating solver instance __init__ run "blank shot", later compiled scripts cashed by numba by default
         Runed beforehand with dummy values.
@@ -35,7 +38,7 @@ class BruteSolver(Solver):
             self._initialized = True
 
             start_init = perf_counter()
-            self.__call__(dummy_task, to_prune=True, forced_mode=True)
+            self.__call__(dummy_task, to_prune=True)
             end_init = perf_counter()
         except Exception as e:
             self._initialized = False
@@ -52,10 +55,11 @@ class BruteSolver(Solver):
                 - to_prune: default True: enable pruning
         :return: instance of Solution
         """
-        if not self._initialized:
-            self._warm_up()
+        # if not self._initialized:
+        #     self._warm_up()
         self._validate_kwargs(kwargs)
         enable_pruning = kwargs.get("to_prune", True)
+        avoid_c_back = kwargs.get("avoid_c", False)
 
         # unpacking task
         matrix = task.matrix
@@ -74,39 +78,41 @@ class BruteSolver(Solver):
         padded_demons = empty((n_demons, max_demon_len), dtype=int8); padded_demons[:] = -1
         for i, d in enumerate(demons):
             padded_demons[i, :d_lengths[i]] = d
+        
 
         # linear approximation, definitely works for up to 12x12 matrix and 12 buffer_size
         init_stack_size = int((n*buffer_s)*0.75) + 1
-        # init_stack_size = 100
 
-        start = perf_counter()
-        paths, scores, lengths = self._process_all_columns(
+        args = (
             matrix, padded_demons, d_lengths, d_costs,
             buffer_s, n, max_score, n_demons, init_stack_size,
-            enable_pruning)
-        end = perf_counter()
+            enable_pruning
+        )
 
-        # results extracting
-        best_idx = 0
-        best_score = -1
-        best_len = 0
-        for i in range(n):
-            sc = scores[i]
-            ln = lengths[i]
-            if sc > best_score or (sc == best_score and ln < best_len):
-                best_score = sc
-                best_idx = i
-                best_len = ln
+        if avoid_c_back:
+            print("Jumped to numba")
+            start = perf_counter()
+            best_path = self._process_all_columns_numba(*args)
+            end = perf_counter()
+        else:
+            try:
+                start = perf_counter()
+                best_path = solve_breach(*args)
+                end = perf_counter()
+            except Exception as e:
+                print(f"Error on c++ back, running numba ({e})")
+                start = perf_counter()
+                best_path = self._process_all_columns_numba(*args)
+                end = perf_counter()
+        
 
-        best_path = paths[best_idx, :best_len]
         return Solution(best_path).fill_solution(task), end-start
-
 
     @staticmethod
     @njit(parallel=True, cache=True)
-    def _process_all_columns(matrix: ndarray, demons_array: ndarray, demons_lengths: ndarray,
-                             demons_costs: ndarray, buffer_size: int|integer, n:int, max_score: int, num_demons: int,
-                             init_stack_size, enable_pruning: bool|bool_):
+    def _process_all_columns_numba(matrix: ndarray, demons_array: ndarray, demons_lengths: ndarray,
+                                   demons_costs: ndarray, buffer_size: int|integer, n:int, max_score: int, num_demons: int,
+                                   init_stack_size, enable_pruning: bool|bool_):
 
         # output buffer
         paths = empty((n, buffer_size, 2), dtype=int8)
@@ -126,23 +132,20 @@ class BruteSolver(Solver):
             scores[col] = score
             lengths[col] = length
 
-        # args = [
-        #     (col, matrix, demons_array, demons_lengths, demons_costs,
-        #      buffer_size, n, max_score, num_demons, init_stack_size, enable_pruning)
-        #     for col in range(n)
-        # ]
-        #
-        # # Use starmap to pass parameters directly to _process_column
-        # with Pool(min(cpu_count(), n)) as pool:
-        #     results = pool.starmap(_process_column, args)  # Directly call _process_column
-        #
-        # # unpack results
-        # for col, (path_full, score, length) in enumerate(results):
-        #     paths[col, :length] = path_full[:length]
-        #     scores[col] = score
-        #     lengths[col] = length
+        best_idx = 0
+        best_score = -1
+        best_len = 0
+        for i in range(n):
+            sc = scores[i]
+            ln = lengths[i]
+            if sc > best_score or (sc == best_score and ln < best_len):
+                best_score = sc
+                best_idx = i
+                best_len = ln
 
-        return paths, scores, lengths
+        best_path = paths[best_idx, :best_len]
+
+        return best_path
 
 
 @njit(cache=True)
@@ -164,8 +167,6 @@ def _process_column(start_col, matrix: ndarray, demons_array: ndarray, demons_le
     :param enable_pruning: same as in __call__
     :return: tuple; path found in current branch, score from path
     """
-    stack_observed_max = 0
-
     # Basically just manual implementation of stack using parallel arrays
     # pre-allocating parallel arrays
     max_stack = init_stack_size
@@ -226,8 +227,6 @@ def _process_column(start_col, matrix: ndarray, demons_array: ndarray, demons_le
         curr_score = stack_score[pointer]
         used_mask = stack_used[pointer]
         curr_leng = stack_length[pointer]
-
-        stack_observed_max = max(stack_observed_max, pointer)
 
         # updating best path if this solution is better
         if curr_score > best_score:
@@ -300,14 +299,11 @@ def _process_column(start_col, matrix: ndarray, demons_array: ndarray, demons_le
 
                     # puch children onto stack
                     if do_push:
-
                         #! TODO: get that logger already
                         if pointer >= max_stack:
                             print(f"! Stack overflow: max_stack={max_stack}, pointer={pointer}")
                             # raise StopIteration("Stack overflow")
                             break
-
-                        stack_observed_max = max(stack_observed_max, pointer)
 
                         idx = pointer
                         stack_path[idx] = new_path
@@ -318,5 +314,4 @@ def _process_column(start_col, matrix: ndarray, demons_array: ndarray, demons_le
                         stack_length[idx] = new_len
                         pointer += 1
 
-    # print((n, buffer_size, stack_observed_max))
     return best_path, best_score, best_path_length
