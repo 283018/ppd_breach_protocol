@@ -93,7 +93,7 @@ class GeneratorMatrix(BPGen):
             final_dists = None
 
         elif mode == 4:
-            final_range = array(i for i in range(1, 99))
+            final_range = array([i for i in range(1, 99)])
             final_dists = None
 
         else:
