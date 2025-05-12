@@ -1,14 +1,17 @@
 # venv
-venv/
-env/
+.venv/
+.env
 
 # idea
-idea/
+.idea/
 
 # all cash
 __pycache__/
+.pyc
 
-# internal testing
-_test.py
-plot.py
-timers.py
+
+
+/*.py
+!/main.py
+
+
