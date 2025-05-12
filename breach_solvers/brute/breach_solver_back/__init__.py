@@ -27,7 +27,7 @@ except FileNotFoundError:
         "Build directory not found. Please build the module first:\n"
         r"'python .\breach_solvers\brute\breach_solver_back\setup.py build clean --all'"
         "&&"
-        "python3 ./breach_solvers/brute/breach_solver_back/setup.py build clean --all"
+        "'python3 ./breach_solvers/brute/breach_solver_back/setup.py build clean --all'"
     )
 
 if module_path is None:
@@ -36,14 +36,14 @@ if module_path is None:
             "Build directory not found. Please build the module first:\n"
             r"'python .\breach_solvers\brute\breach_solver_back\setup.py build clean --all'"
             "&&"
-            "python3 ./breach_solvers/brute/breach_solver_back/setup.py build clean --all"
+            "'python3 ./breach_solvers/brute/breach_solver_back/setup.py build clean --all'"
         )
     else:
         raise ImportError(
             f"Compiled module '{module_name}' not found in {build_dir}. Please build the module:\n"
             r"'python .\breach_solvers\brute\breach_solver_back\setup.py build clean --all'"
             "&&"
-            "python3 ./breach_solvers/brute/breach_solver_back/setup.py build clean --all"
+            "'python3 ./breach_solvers/brute/breach_solver_back/setup.py build clean --all'"
         )
 
 

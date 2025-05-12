@@ -19,8 +19,7 @@ class BruteSolver(Solver):
 
     def _warm_up(self) -> None:
         """
-        Deprecated.
-
+        Stays unused now.
 
         Since that solver utilize numba just-in-time compiler with no-python mode it requires time to compile on first run,
         to avoid skewing time measurements on creating solver instance __init__ run "blank shot", later compiled scripts cashed by numba by default
@@ -90,7 +89,7 @@ class BruteSolver(Solver):
         )
 
         if avoid_c_back:
-            print("Jumped to numba")
+            print("\nJumped to numba")
             start = perf_counter()
             best_path = self._process_all_columns_numba(*args)
             end = perf_counter()
@@ -100,7 +99,7 @@ class BruteSolver(Solver):
                 best_path = solve_breach(*args)
                 end = perf_counter()
             except Exception as e:
-                print(f"Error on c++ back, running numba ({e})")
+                print(f"\nError on c++ back, running numba ({e})")
                 start = perf_counter()
                 best_path = self._process_all_columns_numba(*args)
                 end = perf_counter()
@@ -299,7 +298,6 @@ def _process_column(start_col, matrix: ndarray, demons_array: ndarray, demons_le
 
                     # puch children onto stack
                     if do_push:
-                        #! TODO: get that logger already
                         if pointer >= max_stack:
                             print(f"! Stack overflow: max_stack={max_stack}, pointer={pointer}")
                             # raise StopIteration("Stack overflow")
