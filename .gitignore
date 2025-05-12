@@ -1,13 +1,13 @@
 # venv
-.venv/
-.env/
+venv/
+env/
 
 # idea
-.idea/
+idea/
 
 # all cash
 __pycache__/
 
 # internal testing
-../_test.py
-..plot.py
+/_test.py
+plot.py
