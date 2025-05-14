@@ -10,9 +10,12 @@ class Solution:
     Represents breach protocol solution, only non-optional parameter is path, rest may be reconstructed with .fill_solution()
 
     path: ndarray(shape=(nx2), dtype=int) |
+
     buffer_sequence: Optional[ndarray(dtype=int)] |
+
     active_demons: Optional[ndarray(dtype=bool)] |
-    total_points: Optional[int] |
+
+    total_points: Optional[int|integer] |
     """
     path: ndarray
     buffer_sequence: Optional[ndarray] = None
