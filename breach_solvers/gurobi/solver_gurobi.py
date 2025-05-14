@@ -144,10 +144,17 @@ class GurobiSolver(Solver):
             gp.GRB.MAXIMIZE)
 
         # solve
-        model.optimize()
+
+        # Tf is wrong with you, Gurobi, why exceptions are protected and not referenced..?
+        # noinspection PyUnresolvedReferences,PyProtectedMember
+        try:
+            model.optimize()
+        except gp._exception.GurobiError as e:
+            print("Model is too large to solve: \n    {}".format(e))
+            return Solution(path=array([[-1, -1]])).fill_solution(task), -1
 
         if model.status != gp.GRB.OPTIMAL:
-            raise ValueError(f"Optimization failed, model.status={model.status}")
+            print(f"Solution status is not optimal: model.status={model.status}")
 
         time_end = perf_counter()
 
