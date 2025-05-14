@@ -1,6 +1,6 @@
-from ant_colony.solver_ac import AntColSolver
-from brute.solver_brute import BruteSolver
-from gurobi.solver_gurobi import GurobiSolver
+from breach_solvers.ant_colony.solver_ac import AntColSolver
+from breach_solvers.brute.solver_brute import BruteSolver
+from breach_solvers.gurobi.solver_gurobi import GurobiSolver
 
 from core import *
 from task_generator import *
