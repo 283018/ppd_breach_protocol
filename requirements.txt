@@ -1,0 +1,7 @@
+# requirements.txt
+
+numpy~=2.2.5
+numba~=0.61.2
+
+# see README.md for licence clarification
+gurobipy~=12.0.1
