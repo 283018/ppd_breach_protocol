@@ -4,9 +4,14 @@ from core import Task, Solution
 from typing import Tuple, List, Optional
 from dataclasses import dataclass
 from time import perf_counter
-import numpy as np
+
 # from numpy import ndarray, integer, int8, int16, bool_, array, zeros, empty
-# from time import perf_counter
+import numpy as np
+from numpy.random import default_rng, Generator
+from numpy import integer
+
+
+from icecream import ic
 
 
 @dataclass
@@ -17,132 +22,198 @@ class SolCandidate:
     path: np.ndarray
     cost: int
     length: int
+    buffer_seq: List[int|integer]
 
-    def accept_candidate(self):
-        return Solution(path=self.path, total_points=self.cost)
+    def accept(self):
+        return Solution(path=self.path, buffer_sequence=np.array(self.buffer_seq), total_points=self.cost)
 
 
 @register_solver('ant_col')
 class AntColSolver(Solver):
-    _allowed_kwargs = {'n_ant':int, 'n_iterations':int, 'alpha': float, 'beta': float, 'evaporation': float, 'q': float}
+    _allowed_kwargs = {'n_ant':int,  'n_iterations':int,
+                       'alpha': float,       'beta': float,
+                       'evaporation': float,    'q': float}
+
+    _DEFAULT_PARAMS = {'n_ants': 50, 'n_iterations': 100, 'alpha': 1.0,
+                       'beta': 1.0, 'evaporation': 0.05, 'q': 1.0}
+
+    rng: Generator
+
+
+    def seed(self, seed):
+        if not isinstance(seed, (int, integer)):
+            raise TypeError("seed must be an integer")
+        self.rng = default_rng(seed)
+
 
     def __call__(self, task: Task, **kwargs):
+        # if not self._initialized:
+        #     self._warm_up()
+
+        # params setup
         self._validate_kwargs(kwargs)
-        self.n_ants = kwargs.get('n_ants', 10)
-        self.n_iterations = kwargs.get('n_iterations', 100)
-        self.alpha = kwargs.get('alpha', 1.0)
-        self.beta = kwargs.get('beta', 2.0)
-        self.evaporation = kwargs.get('evaporation', 0.1)
-        self.q = kwargs.get('q', 1.0)
+        params = {**self._DEFAULT_PARAMS, **kwargs}
+        n_ants = params['n_ants']
+        n_iterations = params['n_iterations']
 
+        self.alpha = params['alpha']
+        self.beta = params['beta']
+        self.evaporation = params['evaporation']
+        self.q = params['q']
 
-        self.task = task
-        self.n = task.matrix.shape[0]
-        size = self.n * self.n
-        self.pheromone = np.ones((size, size), dtype=float)
-        self.heuristic = self._compute_heuristic()
+        # pre-calculations
+        n = task.matrix.shape[0]
+        size = task.matrix.size
 
-        best: Optional[SolCandidate] = None
+        # starting pheromones and heuristic
+        pheromone = np.ones((size, size), dtype=float)
+        heuristic = self._get_freqs(task, n, size)
+        best = None
 
         start = perf_counter()
-        for _ in range(self.n_iterations):
-            ants_sols: List[SolCandidate] = []
-            for _ in range(self.n_ants):
-                sol = self._construct_solution()
-                ants_sols.append(sol)
-                if best is None or (sol.cost > best.cost) or (sol.cost == best.cost and sol.length < best.length):
-                    best = sol
-            top_k = sorted(ants_sols, key=lambda s: (-s.cost, s.length))[:max(1, self.n_ants // 2)]
-            self._update_pheromones(top_k)
-
+        for _ in range(n_iterations):
+            # construct solutions for all ants
+            solutions = [self._construct_solution(task, n, pheromone, heuristic) for _ in range(n_ants)]
+            # global best
+            best = self._update_best(best, solutions)
+            # most promising solutions
+            top_solutions = self._select_top_solutions(solutions, n_ants)
+            # update pheromone trails
+            self._update_pheromones(top_solutions, pheromone, n)
         end = perf_counter()
 
-        return best.accept_candidate().fill_solution(self.task), end-start
+        return best.accept().fill_solution(task), end - start
 
-    def _idx(self, r: int, c: int) -> int:
-        return r * self.n + c
 
-    def _rc(self, idx: int) -> Tuple[int, int]:
-        return divmod(idx, self.n)
-
-    def _compute_heuristic(self) -> np.ndarray:
-        freq = {symbol: 0 for symbol in range(1, 100)}
-        for demon in self.task.demons:
+    @staticmethod
+    def _get_freqs(task: Task, n, size):
+        """
+        Calculate attractiveness of each cell (flattened), based on frequency of symbols appearance
+        """
+        occurrence = np.zeros(100, dtype=int)
+        for demon in task.demons:
             for s in demon:
-                freq[int(s)] += 1
+                occurrence[s] += 1
 
-        h = np.zeros(self.n * self.n, dtype=float)
-        for idx in range(self.n * self.n):
-            r, c = self._rc(idx)
-            val = int(self.task.matrix[r, c])
-            h[idx] = freq[val] + 1e-6
+        h = np.zeros(size, dtype=int)
+        for idx in range(size):
+            r, c = _to_shape(idx, n)
+            h[idx] = occurrence[task.matrix[r, c]]
+        # ic(h.reshape((n, n)))
         return h
 
-    def _score_buffer(self, buffer: List[int]) -> int:
-        total = 0
-        seq = np.array(buffer, dtype=int)
-        for demon, cost in zip(self.task.demons, self.task.demons_costs):
-            dlen = len(demon)
-            for i in range(len(seq) - dlen + 1):
-                if np.array_equal(seq[i:i+dlen], demon):
-                    total += int(cost)
-                    break
-        return total
-
-    def _construct_solution(self) -> SolCandidate:
-        n, buf_size = self.n, self.task.buffer_size
+    def _construct_solution(self, task, n, pheromone, heuristic):
+        """
+        Construct single path based on pheromone trails and occurrences of symbols (heuristic)
+        """
+        path = []
+        buffer_vals = []
         visited = set()
-        path: List[Tuple[int,int]] = []
-        buffer_vals: List = []
         is_even_step = False
+        current = (0, self.rng.integers(n))
 
-        candidates = [(0, c) for c in range(n)]
-        move = self._choose_move(-1, candidates)
-        path.append(move)
-        visited.add(move)
-        buffer_vals.append(self.task.matrix[move])
+        path.append(current)
+        visited.add(current)
+        buffer_vals.append(task.matrix[current])
 
-        while len(path) < buf_size:
-            last_r, last_c = path[-1]
-            if is_even_step:
-                candidates = [(last_r, c) for c in range(n) if c != last_c]
-            else:
-                candidates = [(r, last_c) for r in range(n) if r != last_r]
-            candidates = [mv for mv in candidates if mv not in visited]
-            if not candidates:
+        while len(path) < task.buffer_size:
+            current = self._next_move(current, is_even_step, n, visited, pheromone, heuristic)
+
+            if current is None:
                 break
-            move = self._choose_move(path[-1], candidates)
-            path.append(move)
-            visited.add(move)
-            buffer_vals.append(self.task.matrix[move])
+            path.append(current)
+            visited.add(current)
+            buffer_vals.append(task.matrix[current])
             is_even_step = not is_even_step
 
-        cost = self._score_buffer(buffer_vals)
-        return SolCandidate(path=np.array(path, dtype=np.int8), cost=cost, length=len(path))
+        # scoring paths
+        total = 0
+        seq = np.array(buffer_vals, dtype=int)
+        for demon, cost in zip(task.demons, task.demons_costs):
+            dlen = len(demon)
+            if dlen == 0:
+                continue
+            for i in range(len(seq) - dlen + 1):
+                if np.array_equal(seq[i:i + dlen], demon):
+                    total += cost
+                    break
 
-    def _choose_move(
-        self,
-        last: Tuple[int,int] or int,
-        candidates: List[Tuple[int,int]],
-    ) -> Tuple[int,int]:
-        idx_last = last if isinstance(last, int) else self._idx(*last)
+        return SolCandidate(
+            path=np.array(path, dtype=np.int8),
+            cost=total,
+            length=len(path),
+            buffer_seq = buffer_vals
+        )
+
+    def _next_move(self, last, is_even, n, visited, pheromone, heuristic):
+        """
+        Select nest move according to P(ij) formula
+        """
+        # generating valid candidates from current position
+        r, c = last
+        if is_even:
+            candidates = [(r, col) for col in range(n) if col != c and (r, col) not in visited]
+        else:
+            candidates = [(row, c) for row in range(n) if row != r and (row, c) not in visited]
+
+        if not candidates:
+            return None
+
+        # selecting next move according to:
+        # P(ij) = (τ_ij^α * ɳ_j^β) / ∑(τ_ik^α * ɳ_k^β)
+        # τ - pheromone value, ɳ - heuristic (frequencies) value
+        last_idx = _to_flat(*last, n)
         scores = []
-        for (r, c) in candidates:
-            idx_next = self._idx(r, c)
-            tau = self.pheromone[idx_last, idx_next] ** self.alpha
-            eta = self.heuristic[idx_next] ** self.beta
+        for r, c in candidates:
+            idx = _to_flat(r, c, n)
+            tau = pheromone[last_idx, idx] ** self.alpha
+            eta = heuristic[idx] ** self.beta
             scores.append(tau * eta)
-        scores = np.array(scores, dtype=float)
-        probs = scores / scores.sum()
-        choice = np.random.choice(len(candidates), p=probs)
-        return candidates[choice]
 
-    def _update_pheromones(self, solutions: List[SolCandidate]):
-        self.pheromone *= (1 - self.evaporation)
+        probs = np.array(scores) / np.sum(scores)
+        return candidates[self.rng.choice(len(candidates), p=probs)]
+
+
+    @staticmethod
+    def _update_best(current_best, candidates):
+        """
+        Update global best solution
+        """
+        if not current_best:
+            return max(candidates, key=lambda x: (x.cost, -x.length*0.1))
+
+        best_candidate = max(candidates + [current_best], key=lambda x: (x.cost, -x.length*0.1))
+        return best_candidate
+
+    @staticmethod
+    def _select_top_solutions(solutions, n_ants):
+        """
+        Returns promising solutions for pheromone update (1, n_ants//2)
+        """
+        k = max(1, n_ants // 2)
+        return sorted(solutions, key=lambda s: (-s.cost, s.length*0.1))[:k]
+
+    #* TODO: need be careful with that mutability
+    def _update_pheromones(self, solutions, pheromone, n):
+        """
+        Update pheromone trails based on best solutions
+        """
+        pheromone *= (1 - self.evaporation)
         for sol in solutions:
-            deposit_amt = self.q * (sol.cost / sol.length if sol.length > 0 else 0)
+            if sol.length <= 1:
+                continue
+            deposit = self.q * sol.cost / sol.length
             for i in range(sol.length - 1):
-                a = tuple(sol.path[i])
-                b = tuple(sol.path[i+1])
-                idx_a, idx_b = self._idx(*a), self._idx(*b)
-                self.pheromone[idx_a, idx_b] += deposit_amt
+                from_idx = _to_flat(*sol.path[i], n)
+                to_idx = _to_flat(*sol.path[i+1], n)
+                pheromone[from_idx, to_idx] += deposit
+
+
+
+def _to_flat(r, c, n):
+    """Convert 2d matrix coords to 1d index"""
+    return r * n + c
+
+def _to_shape(idx, n):
+    """Convert 1D index to 2D matrix coords"""
+    return divmod(idx, n)
