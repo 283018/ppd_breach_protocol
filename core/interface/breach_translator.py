@@ -24,7 +24,7 @@ def map_breach(arraylike):
     #         raise ValueError("Input list is empty or improperly structured")
     #     first = arraylike[0][0]
 
-    if not arraylike[0][0]:
+    if arraylike[0][0] is None:
         raise ValueError("Input is empty")
 
     if isinstance(arraylike, ndarray):
