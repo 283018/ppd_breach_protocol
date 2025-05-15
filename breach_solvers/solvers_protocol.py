@@ -1,6 +1,11 @@
 from typing import Protocol, Callable, Any, Tuple, Dict, Type
 from core import Task, Solution
 
+class OptimizationError(Exception):
+    """Raised when optimization of a task is not possible"""
+    pass
+
+
 solver_registry = {}
 
 
@@ -34,8 +39,14 @@ class Solver(Protocol):
                     f"Argument '{key}' must be of type {expected_type.__name__}, got {type(value).__name__}")
 
 
+# TODO: docstring kwargs update
 def get_solver(name: str) -> Solver:
-    """Get solver by name."""
+    """
+    Get solver instance by name:
+
+    :param name: {'gurobi', 'brute', 'ant_col'}
+    :return: solver instance
+    """
     solver_class = solver_registry.get(name)
     if not solver_class:
         raise ValueError(f"Unknown solver: {name}, must be one of {list(solver_registry.keys())}")
