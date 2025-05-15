@@ -17,7 +17,7 @@ class Solution:
 
     total_points: Optional[int|integer] |
     """
-    path: ndarray
+    path: Optional[ndarray] = None
     buffer_sequence: Optional[ndarray] = None
     active_demons: Optional[ndarray] = None
     total_points: Optional[int|integer] = None
@@ -31,6 +31,8 @@ class Solution:
         active_demons = self.active_demons
         total_points = self.total_points
 
+        if path is None:
+            raise TypeError("Solution must have path, for no-path cases use NoSolution instead")
         if not isinstance(path, ndarray):
             raise ValueError("path must be ndarray")
         if path.size == 0:
@@ -47,7 +49,6 @@ class Solution:
         if total_points is not None:
             if not isinstance(total_points, (int|integer)):
                 raise ValueError("total_points must be integer")
-
 
     def fill_solution(self, from_task):
         """
@@ -90,9 +91,23 @@ class Solution:
         return self
 
 
+@dataclass
+class NoSolution(Solution):
+    """
+    Represents errored/impossible Solutions
+    """
+    path: Optional[ndarray] = None
+    reason: str = None
 
+    def _validate_inputs(self):
+        if self.path is not None:
+            raise ValueError("In NoSolution, 'path' must always be None")
+        if any(val is not None for val in (self.total_points, self.active_demons, self.buffer_sequence)):
+            raise ValueError("NoSolution cant contain any of {buffer_sequence, active_demons, total_points}")
 
-
+    def fill_solution(self, from_task=None):
+        print("Unable to fill NoSolution")
+        return self
 
 
 
