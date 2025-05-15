@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from typing import Tuple
-from numpy import ndarray, integer, issubdtype
+from numpy import ndarray, integer, issubdtype, array
 
 
 
@@ -51,3 +51,9 @@ class Task:
         return Task(matrix=self.matrix, buffer_size=self.buffer_size, demons=self.demons, demons_costs=self.demons_costs)
 
 
+DUMMY_TASK = Task(
+    matrix=array([[1, 2], [3, 4]], dtype='int8'),
+    demons=(array([1, 3], dtype='int8'),),
+    demons_costs=array([1], dtype='int8'),
+    buffer_size=1
+)
