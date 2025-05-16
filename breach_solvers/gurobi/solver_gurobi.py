@@ -54,8 +54,6 @@ class GurobiSolver(Solver):
         self._validate_kwargs(kwargs)
         output_flag = kwargs.get('output_flag', 0)
         strict_opt = kwargs.get('strict_opt', False)
-        if not self._initialized:
-            self._warm_up()
 
         matrix = task.matrix
         buffer_size = int(task.buffer_size)

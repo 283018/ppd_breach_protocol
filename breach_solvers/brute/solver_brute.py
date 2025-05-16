@@ -43,8 +43,6 @@ class BruteSolver(Solver):
                 - to_prune: default True: enable pruning
         :return: instance of Solution
         """
-        if not self._initialized:
-            self._warm_up()
         self._validate_kwargs(kwargs)
         enable_pruning = kwargs.get("to_prune", True)
         avoid_c_back = kwargs.get("avoid_c", False)
