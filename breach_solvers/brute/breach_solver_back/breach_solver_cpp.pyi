@@ -1,4 +1,3 @@
-from typing import Tuple
 from numpy import ndarray, int64
 
 def solve_breach(
