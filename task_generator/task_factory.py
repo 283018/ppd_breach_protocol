@@ -209,9 +209,9 @@ class TaskFactory:
 
 
 
-if __name__ == "__main__":
-    t = TaskFactory(123123)
-    t.gen_manual()
+# if __name__ == "__main__":
+#     t = TaskFactory(123123)
+#     t.gen_manual()
 #     from breach_solvers import SolverGurobi
 #     from core import solution_print
 #     from time import time, perf_counter
