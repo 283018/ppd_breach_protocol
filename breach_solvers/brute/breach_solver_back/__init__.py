@@ -1,3 +1,5 @@
+# breach_solvers/__init__.py
+
 import os
 import platform
 import sys
