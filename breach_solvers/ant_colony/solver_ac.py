@@ -34,8 +34,9 @@ class AntColSolver(Solver):
                        'alpha': float,       'beta': float,
                        'evaporation': float,    'q': float}
 
-    _DEFAULT_PARAMS = {'n_ants': 50, 'n_iterations': 100, 'alpha': 1.0,
-                       'beta': 1.0, 'evaporation': 0.05, 'q': 1.0}
+    _DEFAULT_PARAMS = {'n_ants': 50, 'n_iterations': 100,
+                       'alpha': 1.0, 'beta': 1.0,
+                       'evaporation': 0.05, 'q': 1.0}
 
     rng: Generator
 
