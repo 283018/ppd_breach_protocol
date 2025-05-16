@@ -14,27 +14,22 @@ from numba import njit, prange
 @register_solver('brute')
 class BruteSolver(Solver):
     _allowed_kwargs = {'to_prune':bool, 'avoid_c':bool}
-    _initialized:bool = False
 
 
     def _warm_up(self) -> None:
         """
         Runed beforehand with dummy values.
         """
-        # print(f"\rBrute-force solver warmup...", flush=True)
         dummy_task = Task(
             matrix=array([[1, 2], [3, 4]], dtype=int8),
             demons=(array([1, 3], dtype=int8),),
             demons_costs=array([1], dtype=int8),
             buffer_size=1,)
         try:
-            self._initialized = True
-
             start_init = perf_counter()
             self.__call__(dummy_task, to_prune=True)
             end_init = perf_counter()
         except Exception as e:
-            self._initialized = False
             raise RuntimeError(f"Error while initialization brute-force solver occurred: {e}") from e
         else:
             print(f"\rSuccessfully initialized brute-force solver in {end_init-start_init:.4} sec", flush=True)

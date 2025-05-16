@@ -20,6 +20,12 @@ def register_solver(name: str) -> Callable[[Any], Any]:
 class Solver(Protocol):
     _allowed_kwargs: Dict[str, Type] = {}
 
+    def __init__(self):
+        self._warm_up()
+
+    def _warm_up(self):
+        raise NotImplementedError()
+
     def __call__(self, task:Task, **kwargs) -> Tuple[Solution, float]:
         """Call method takes instance of Task and returns instance of Solution"""
         ...
