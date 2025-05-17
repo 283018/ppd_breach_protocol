@@ -214,7 +214,7 @@ class GurobiSolver(Solver):
     def _optimize(self, strict_opt) -> str|None:
         """
         Run optimization.
-        :param strict_opt: if True raise error if optimization fails, otherwise return error log on failure.
+        :param strict_opt: if True raise error on optimization failure, otherwise return error log on failure.
         :return: optimization failure message or None if optimization succeeded.
         """
         try:
