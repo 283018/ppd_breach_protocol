@@ -3,8 +3,12 @@ from core import Task, Solution, DUMMY_TASK, NoSolution
 
 from numpy import int8, array, zeros, dot
 from time import perf_counter
+from typing import Tuple, List
 
-import gurobipy as gp
+from gurobipy import GRB, quicksum, Model ,Var, LinExpr, tupledict
+# noinspection PyProtectedMember
+from gurobipy._exception import GurobiError
+
 
 # ================================================================
 # This script uses Gurobi Optimizer via the 'gurobipy' Python API.
@@ -20,12 +24,23 @@ import gurobipy as gp
 # ================================================================
 
 
-# TODO: separate method + init log
+def ensure_reset(method):
+    """
+    Gurobi solver decorator, ensures model reset on __call__ release.
+    """
+    def wrapper(self, *args, **kwargs):
+        try:
+            return method(self, *args, **kwargs)
+        finally:
+            self.model.reset(clearall=True)
+    return wrapper
+
+
 @register_solver('gurobi')
 class GurobiSolver(Solver):
     _allowed_kwargs = {'output_flag': bool, 'strict_opt': bool}
 
-    model: gp.Model
+    model: Model
 
     def _warm_up(self):
         from os import devnull
@@ -33,7 +48,7 @@ class GurobiSolver(Solver):
 
         original_stdout = sys.stdout
         sys.stdout = open(devnull, 'w')
-        self.model = gp.Model('BreachProtocol')
+        self.model = Model('BreachProtocol')
         sys.stdout = original_stdout
 
         self.model.setParam('OutputFlag', 0)
@@ -45,10 +60,11 @@ class GurobiSolver(Solver):
         except Exception as e:
             raise RuntimeError(f"Error while initialization gurobi solver occurred: {e}") from e
         else:
-            print(f"\rSuccessfully initialized gurobi solver in {end_init - start_init:.4} sec", flush=True)
+            print(
+                f"\rSuccessfully initialized gurobi solver in {end_init - start_init:.4} sec", flush=True)
 
-    # pycharm cant reed types from dataclasses and struggling with gurobi :/
-    # noinspection PyTypeChecker, PyUnresolvedReferences
+
+    @ensure_reset
     def __call__(self, task: Task, **kwargs):
         """Solve breach protol task using linear programming solver Gurobi via gurobipy API."""
         self._validate_kwargs(kwargs)
@@ -69,8 +85,57 @@ class GurobiSolver(Solver):
         self.model.setParam('OutputFlag', output_flag)
 
         time_start = perf_counter()
+        x, y, buffer_seq = self._build_model(
+            matrix=matrix,
+            buffer_size=buffer_size,
+            demons=demons,
+            costs=costs,
+            n=n,
+            d_amo=d_amo,
+            d_lengths=d_lengths,
+            unused_cell_reward=unused_cell_reward,
+        )
+        time_mid = perf_counter()
+        opt_message = self._optimize(strict_opt)
+        time_end = perf_counter()
 
-        x = self.model.addVars(n, n, buffer_size, vtype=gp.GRB.BINARY, name='x')
+        if opt_message is not None:
+            return NoSolution(reason=opt_message), -1
+
+        if self.model.status != GRB.OPTIMAL:
+            if strict_opt:
+                raise OptimizationError("Gurobi solution status is not optimal:\n    {}".format(GRB.OPTIMAL))
+            else:
+                print(f"Solution status is not optimal: model.status={self.model.status}")
+
+        x_path = array([(i, j) for t in range(buffer_size) for i in range(n) for j in range(n) if x[i, j, t].X > 0.5], dtype=int8)
+        buffer_nums = array([int(buffer_seq[t].getValue()) for t in range(buffer_size)])
+        y_active = zeros(d_amo, dtype=bool)
+        for i, var in y.items():
+            y_active[i] = bool(int(var.X))
+        y_total_points = dot(costs, y_active)
+
+        if output_flag:
+            print(f"\nBuild time: {time_mid - time_start:.6} sec \nOptimization time: {time_end - time_mid:.6} sec")
+
+        return Solution(x_path, buffer_nums, y_active, y_total_points), time_end - time_start
+
+
+    def _build_model(self, matrix, buffer_size, demons, costs, n, d_amo, d_lengths, unused_cell_reward) \
+            -> Tuple[tupledict[Tuple[int, ...], Var], tupledict[int, Var], List[LinExpr]]:
+        """
+        Model build
+        :param matrix:
+        :param buffer_size:
+        :param demons:
+        :param costs:
+        :param n:
+        :param d_amo:
+        :param d_lengths:
+        :param unused_cell_reward:
+        :return:
+        """
+        x = self.model.addVars(n, n, buffer_size, vtype=GRB.BINARY, name='x')
 
         for t in range(buffer_size):
             self.model.addConstr(x.sum('*', '*', t) <= 1, name=f'one_cell_per_step_{t}')
@@ -93,16 +158,18 @@ class GurobiSolver(Solver):
             for i in range(n):
                 for j in range(n):
                     if t % 2 == 1:
-                        self.model.addConstr(x[i, j, t] <= x.sum('*', j, t - 1), name=f'move_rule_col_{i}_{j}_step_{t}')
+                        self.model.addConstr(x[i, j, t] <= x.sum('*', j, t - 1),
+                                             name=f'move_rule_col_{i}_{j}_step_{t}')
                     else:
-                        self.model.addConstr(x[i, j, t] <= x.sum(i, '*', t - 1), name=f'move_rule_row_{i}_{j}_step_{t}')
+                        self.model.addConstr(x[i, j, t] <= x.sum(i, '*', t - 1),
+                                             name=f'move_rule_row_{i}_{j}_step_{t}')
 
         buffer_seq = [
-            gp.quicksum(
+            quicksum(
                 matrix[i, j] * x[i, j, t]
                 for i in range(n)
                 for j in range(n)
-                )
+            )
             for t in range(buffer_size)
         ]
 
@@ -114,7 +181,7 @@ class GurobiSolver(Solver):
 
             for p in range(valid_p):
                 z_i[p] = self.model.addVar(
-                    vtype=gp.GRB.BINARY, name=f'z_{i}_{p}')
+                    vtype=GRB.BINARY, name=f'z_{i}_{p}')
             z.append(z_i)
 
             for p in range(valid_p):
@@ -125,53 +192,38 @@ class GurobiSolver(Solver):
                         1,
                         buffer_seq[t] == demons[i][s],
                         name=f'indicator_demon_{i}_pos_{p}_symbol_{s}')
-        
 
-        y = self.model.addVars(d_amo, vtype=gp.GRB.BINARY, name='y')
+
+        y = self.model.addVars(d_amo, vtype=GRB.BINARY, name='y')
 
         for i in range(d_amo):
             valid_p = buffer_size - d_lengths[i] + 1
 
-            self.model.addConstr(y[i] <= gp.quicksum(z[i][p] for p in range(valid_p)), name=f'active_y_{i}_at_least_one')
+            self.model.addConstr(y[i] <= quicksum(z[i][p] for p in range(valid_p)), name=f'active_y_{i}_at_least_one')
             for p in range(valid_p):
                 self.model.addConstr(y[i] >= z[i][p], name=f'active_y_{i}_for_{p}')
 
         self.model.setObjective(
-            gp.quicksum(
-                costs[i] * y[i] for i in range(d_amo)) +
-                unused_cell_reward * (buffer_size - used_buffer),
-            gp.GRB.MAXIMIZE)
+            quicksum(costs[i] * y[i] for i in range(d_amo))
+            + unused_cell_reward * (buffer_size - used_buffer),
+            GRB.MAXIMIZE,
+        )
 
-        # Tf is wrong with you, Gurobi, why exceptions are protected and not referenced..?
-        # noinspection PyUnresolvedReferences,PyProtectedMember
+        return x, y, buffer_seq
+
+    def _optimize(self, strict_opt) -> str|None:
+        """
+        Run optimization.
+        :param strict_opt: if True raise error if optimization fails, otherwise return error log on failure.
+        :return: optimization failure message or None if optimization succeeded.
+        """
         try:
             self.model.optimize()
-        except gp._exception.GurobiError as e:
+        except GurobiError as e:
             if strict_opt:
                 raise OptimizationError("Gurobi optimization failed:\n    {}".format(e)) from e
             else:
-                return NoSolution(reason=e), -1
+                return str(e)
+        return None
 
-        if self.model.status != gp.GRB.OPTIMAL:
-            if strict_opt:
-                raise OptimizationError("Gurobi solution status is not optimal:\n    {}".format(gp.GRB.OPTIMAL))
-            else:
-                print(f"Solution status is not optimal: model.status={self.model.status}")
-
-        time_end = perf_counter()
-
-
-        # result extraction
-        x_path = array([(i, j) for t in range(buffer_size) for i in range(n) for j in range(n) if x[i, j, t].x > 0.5], dtype=int8)
-
-        buffer_nums = array([int(buffer_seq[t].getValue()) for t in range(buffer_size)])
-
-        y_active = zeros(d_amo, dtype=bool)
-        for i, var in y.items():
-            y_active[i] = bool(int(var.x))
-
-        y_total_points = dot(costs, y_active)
-
-        self.model.reset()
-        return Solution(x_path, buffer_nums, y_active, y_total_points), time_end - time_start
 
