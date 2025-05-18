@@ -65,11 +65,10 @@ class GurobiSolver(Solver):
     def solve(self, task: Task, **kwargs) -> Tuple[Solution|NoSolution, float]:
         """
         Linear programming solver.
+
         Uses Gurobi via gurobipy API.
         Build constraints-based model to find optimal or near-optimal (if previous is not possible) solutions.
-
-        IMPORTANT: due to Gurobi license limitation can not solve particularly large tasks, will return NoSolution or
-        raise OptimizationError
+            IMPORTANT: due to Gurobi license limitation can not solve particularly large tasks, will return NoSolution or raise OptimizationError
 
         Possible keyword arguments:
             - output_flag:bool=False - if True allow solver to output full optimization information in console.

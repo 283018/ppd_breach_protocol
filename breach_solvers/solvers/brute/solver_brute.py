@@ -39,8 +39,8 @@ class BruteSolver(Solver):
         but very noticeable time overhead for recompilation on different-sized inputs.
 
         Possible keyword arguments:
-            - to_prune:bool=True - if True allow B&B pruning, and best-score loop cut, essentially heuristic, that allows for non-optimal solutions (optimal solution is one, that uses the least buffer across all maximum-scored solutions)
-            - avoid_c:bool=False - if Rrue skip call to c++ back and jump to python-numba implementation
+            - to_prune:bool=True - if True allow B&B pruning, and best-score loop cut, essentially heuristic, that allows for non-optimal solutions (optimal solution is one, that uses the least buffer across all maximum-scored solutions).
+            - avoid_c:bool=False - if True skip call to c++ back and jump to python-numba implementation.
 
         :param task:
         :param kwargs:
