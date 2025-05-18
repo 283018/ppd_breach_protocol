@@ -1,4 +1,4 @@
-from breach_solvers.solvers_abc import Solver, SeedableSolver, register_solver
+from breach_solvers.solvers_abc import SeedableSolver, register_solver
 from core import Task, Solution, DUMMY_TASK
 
 from typing import List
@@ -8,9 +8,9 @@ from time import perf_counter
 # from numpy import ndarray, integer, int8, int16, bool_, array, zeros, empty
 import numpy as np
 from numpy.random import default_rng, Generator
-from numpy import integer
+from numpy import integer, ndarray
 
-
+from icecream import ic
 
 
 @dataclass
@@ -83,37 +83,29 @@ class AntColSolver(SeedableSolver):
         evaporation = params["evaporation"]
         q = params["q"]
 
+        matrix = task.matrix
+        demons = task.demons
+        demons_costs = task.demons_costs
+        buffer_size = task.buffer_size
+
         # pre-calculations
-        n = task.matrix.shape[0]
-        size = task.matrix.size
+        n = matrix.shape[0]
+        size = matrix.size
 
         # starting pheromones and heuristic
         pheromone = np.ones((size, size), dtype=float)
         heuristic = self._get_freqs(task, n, size)
 
         start = perf_counter()
-        best = self._run_ants(task, n_ants, n_iterations, n, pheromone, heuristic, alpha, beta, evaporation, q)
+        best = self._run_ants(matrix, demons, demons_costs, buffer_size, n_ants, n_iterations, n, pheromone, heuristic, alpha, beta, evaporation, q)
         end = perf_counter()
 
         return best.accept().fill_solution(task), end - start
 
-    def _run_ants(self, task, n_ants, n_iterations, n, pheromone, heuristic, alpha, beta, evaporation, q):
-        """Main loop"""
-        best = None
-        for _ in range(n_iterations):
-            solutions = [
-                self._construct_solution(task, n, pheromone, heuristic, alpha, beta)
-                for _ in range(n_ants)
-            ]
-            best = self._update_best(best, solutions)
-            top_solutions = self._select_top_solutions(solutions, n_ants)
-            self._update_pheromones(top_solutions, pheromone, n, evaporation, q)
-        return best
-
     @staticmethod
-    def _get_freqs(task: Task, n, size):
+    def _get_freqs(task, n, size):
         """
-        Calculate attractiveness of each cell (flattened), based on frequency of symbols appearance
+        |Precalculation| = Calculate attractiveness of each cell (flattened), based on frequency of symbols appearance
         """
         occurrence = np.zeros(100, dtype=int)
         for demon in task.demons:
@@ -124,10 +116,29 @@ class AntColSolver(SeedableSolver):
         for idx in range(size):
             r, c = _to_shape(idx, n)
             h[idx] = occurrence[task.matrix[r, c]]
-        # ic(h.reshape((n, n)))
+        ic(h.reshape((n, n)))
+        ic(h)
         return h
 
-    def _construct_solution(self, task, n, pheromone, heuristic, alpha, beta):
+    def _run_ants(self, matrix, demons, demons_costs, buffer_size, n_ants, n_iterations, n, pheromone, heuristic, alpha, beta, evaporation, q):
+        """Main loop"""
+        best = None
+        for _ in range(n_iterations):
+            solutions = self._get_solutions_candidates(n_ants, matrix, demons, demons_costs, buffer_size, n, pheromone, heuristic, alpha, beta)
+            best = self._update_best(best, solutions)
+            top_solutions = self._select_top_solutions(solutions, n_ants)
+            self._update_pheromones(top_solutions, pheromone, n, evaporation, q)
+        return best
+
+
+    def _get_solutions_candidates(self, n_ants, matrix, demons, demons_costs, buffer_size, n, pheromone, heuristic, alpha, beta):
+        solutions = []
+        for i in range(n_ants):
+            solutions.append(self._construct_solution(matrix, demons, demons_costs, buffer_size, n, pheromone, heuristic, alpha, beta))
+        return solutions
+
+
+    def _construct_solution(self, matrix, demons, demons_costs, buffer_size, n, pheromone, heuristic, alpha, beta):
         """
         Construct single path based on pheromone trails and occurrences of symbols (heuristic)
         """
@@ -139,9 +150,9 @@ class AntColSolver(SeedableSolver):
 
         path.append(current)
         visited.add(current)
-        buffer_vals.append(task.matrix[current])
+        buffer_vals.append(matrix[current])
 
-        while len(path) < task.buffer_size:
+        while len(path) < buffer_size:
             current = self._next_move(
                 current, is_even_step, n, visited, pheromone, heuristic, alpha, beta)
 
@@ -149,13 +160,13 @@ class AntColSolver(SeedableSolver):
                 break
             path.append(current)
             visited.add(current)
-            buffer_vals.append(task.matrix[current])
+            buffer_vals.append(matrix[current])
             is_even_step = not is_even_step
 
         # scoring paths
         total = 0
         seq = np.array(buffer_vals, dtype=int)
-        for demon, cost in zip(task.demons, task.demons_costs):
+        for demon, cost in zip(demons, demons_costs):
             dlen = len(demon)
             if dlen == 0:
                 continue
