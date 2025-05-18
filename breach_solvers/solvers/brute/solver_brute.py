@@ -1,46 +1,40 @@
-from breach_solvers.solvers_protocol import Solver, register_solver
-from core import Task, Solution
+from breach_solvers.solvers_abc import Solver, register_solver
+from core import Task, Solution, DUMMY_TASK
 from .breach_solver_back import solve_breach
 
 from numpy import ndarray, integer, int8, int16, bool_, array, zeros, empty
 from time import perf_counter
-from typing import Tuple
+from typing import Tuple, Any
 
 from numba import njit, prange
 
-# from icecream import ic
 
 
 @register_solver('brute')
 class BruteSolver(Solver):
+    """
+    Brute-Force solver
+    """
     _allowed_kwargs = {'to_prune':bool, 'avoid_c':bool}
 
 
     def _warm_up(self) -> None:
-        """
-        Runed beforehand with dummy values.
-        """
-        dummy_task = Task(
-            matrix=array([[1, 2], [3, 4]], dtype=int8),
-            demons=(array([1, 3], dtype=int8),),
-            demons_costs=array([1], dtype=int8),
-            buffer_size=1,)
         try:
             start_init = perf_counter()
-            self.__call__(dummy_task, to_prune=True)
+            self.solve(DUMMY_TASK, to_prune=True)
             end_init = perf_counter()
         except Exception as e:
             raise RuntimeError(f"Error while initialization brute-force solver occurred: {e}") from e
         else:
-            print(f"\rSuccessfully initialized brute-force solver in {end_init-start_init:.4} sec", flush=True)
+            print(f"\rSuccessfully initialized brute-force solver in {end_init - start_init:.4} sec", flush=True)
 
 
-    def __call__(self, task:Task, **kwargs) -> Tuple[Solution, float]:
+    def solve(self, task:Task, **kwargs:Any) -> Tuple[Solution, float]:
         """
         Solve task via optimized brute force
         :param task: Task to solve
-        :param **kwargs: optional keyword arguments:
-                - to_prune: default True: enable pruning
+        :param kwargs: optional keyword arguments:
+            - to_prune: default True: enable pruning
         :return: instance of Solution
         """
         self._validate_kwargs(kwargs)

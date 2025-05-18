@@ -1,4 +1,4 @@
-from breach_solvers.solvers_protocol import Solver, SeedableSolver, register_solver
+from breach_solvers.solvers_abc import Solver, SeedableSolver, register_solver
 from core import Task, Solution, DUMMY_TASK
 
 from typing import List
@@ -58,19 +58,21 @@ class AntColSolver(SeedableSolver):
         self.rng = default_rng()
         try:
             start_init = perf_counter()
-            self.__call__(DUMMY_TASK)
+            self.solve(DUMMY_TASK)
             end_init = perf_counter()
         except Exception as e:
             raise RuntimeError(f"Error while initialization ant-colony solver occurred: {e}") from e
         else:
             print(f"\rSuccessfully initialized ant-colony solver in {end_init - start_init:.4} sec", flush=True,)
 
+
     def seed(self, seed):
         if not isinstance(seed, (int, integer)):
             raise TypeError("seed must be an integer")
         self.rng = default_rng(seed)
 
-    def __call__(self, task: Task, **kwargs):
+
+    def solve(self, task: Task, **kwargs):
         self._validate_kwargs(kwargs)
         params = {**self._DEFAULT_PARAMS, **kwargs}
         n_ants = params["n_ants"]

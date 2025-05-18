@@ -1,7 +1,7 @@
 from typing import overload, Literal
 
 from .solvers import BruteSolver, GurobiSolver, AntColSolver
-from .solvers_protocol import Solver, solver_registry
+from .solvers_abc import Solver, solver_registry
 
 
 @overload

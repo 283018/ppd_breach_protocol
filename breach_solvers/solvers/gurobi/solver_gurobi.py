@@ -1,4 +1,4 @@
-from breach_solvers.solvers_protocol import Solver, OptimizationError, register_solver
+from breach_solvers.solvers_abc import Solver, OptimizationError, register_solver
 from core import Task, Solution, DUMMY_TASK, NoSolution
 
 from numpy import int8, array, zeros, dot
@@ -55,17 +55,16 @@ class GurobiSolver(Solver):
 
         try:
             start_init = perf_counter()
-            self.__call__(DUMMY_TASK)
+            self.solve(DUMMY_TASK)
             end_init = perf_counter()
         except Exception as e:
             raise RuntimeError(f"Error while initialization gurobi solver occurred: {e}") from e
         else:
-            print(
-                f"\rSuccessfully initialized gurobi solver in {end_init - start_init:.4} sec", flush=True)
+            print(f"\rSuccessfully initialized gurobi solver in {end_init - start_init:.4} sec", flush=True)
 
 
     @ensure_reset
-    def __call__(self, task: Task, **kwargs):
+    def solve(self, task: Task, **kwargs):
         """Solve breach protol task using linear programming solver Gurobi via gurobipy API."""
         self._validate_kwargs(kwargs)
         output_flag = kwargs.get('output_flag', 0)

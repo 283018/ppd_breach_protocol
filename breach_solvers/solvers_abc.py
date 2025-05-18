@@ -1,5 +1,6 @@
-from typing import Protocol, Callable, Any, Tuple, Dict, Type
-from core import Task, Solution
+from typing import Callable, Any, Tuple, Dict, Type
+from abc import ABC, ABCMeta, abstractmethod
+from core import Task, Solution, NoSolution
 
 
 
@@ -19,21 +20,38 @@ class OptimizationError(Exception):
     pass
 
 
-class Solver(Protocol):
+class Solver(ABC, metaclass=ABCMeta):
+    """
+    Solver abstract base class
+    """
     _allowed_kwargs: Dict[str, Type] = {}
 
     # noinspection PyProtocol
     def __init__(self):
         self._warm_up()
 
+    @abstractmethod
     def _warm_up(self):
-        raise NotImplementedError("Subclasses must implement '_warm_up'")
-
-    def __call__(self, task:Task, **kwargs) -> Tuple[Solution, float]:
-        """Call method takes instance of Task and returns instance of Solution"""
+        """Solver initialization and dummy task run"""
         ...
 
-    def _validate_kwargs(self, kwargs:dict) -> None:
+    def __call__(self, task:Task, **kwargs:Any) -> Tuple[Solution|NoSolution, float]:
+        return self.solve(task, **kwargs)
+
+    def s(self, task:Task, **kwargs:Any) -> Tuple[Solution|NoSolution, float]:
+         return self.solve(task, **kwargs)
+
+    @abstractmethod
+    def solve(self, task:Task, **kwargs:Any) -> Tuple[Solution|NoSolution, float]:
+        """
+        'solve' is main method to solve task
+        's' and '__call__' are essentially a shortcuts 'solve'
+        """
+        ...
+    __call__.__doc__ = s.__doc__ = solve.__doc__
+
+
+    def _validate_kwargs(self, kwargs:Dict[str, Any]) -> None:
         """Method to validate optional kwargs for some solvers (if needed)"""
         # Access _allowed_kwargs from the subclass
         allowed_kwargs = self.__class__._allowed_kwargs
@@ -44,10 +62,17 @@ class Solver(Protocol):
                 raise TypeError(f"Unexpected keyword argument: '{key}'")
             expected_type = allowed_kwargs[key]
             if not isinstance(value, expected_type):
-                raise TypeError(f"Argument '{key}' must be of type {expected_type.__name__}, got {type(value).__name__}")
+                raise TypeError(
+                    f"Argument '{key}' must be of type {expected_type.__name__}, got {type(value).__name__}"
+                )
 
 
-class SeedableSolver(Solver, Protocol):
+
+class SeedableSolver(Solver, ABC):
+    """
+    Abstract base class for solvers that require random number generation.
+    """
+    @abstractmethod
     def seed(self, value: int) -> None:
         """Set the random number generator seed."""
         ...
