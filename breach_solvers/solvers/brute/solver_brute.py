@@ -31,11 +31,20 @@ class BruteSolver(Solver):
 
     def solve(self, task:Task, **kwargs:Any) -> Tuple[Solution, float]:
         """
-        Solve task via optimized brute force
-        :param task: Task to solve
-        :param kwargs: optional keyword arguments:
-            - to_prune: default True: enable pruning
-        :return: instance of Solution
+        Brute force solver.
+
+        Uses DFS serach across all possible paths.
+        Uses c++ module if possible.
+        If c++ back fails, run python based methods wrapped in numba jit-compiler with similar execution times,
+        but very noticeable time overhead for recompilation on different-sized inputs.
+
+        Possible keyword arguments:
+            - to_prune:bool=True - if True allow B&B pruning, and best-score loop cut, essentially heuristic, that allows for non-optimal solutions (optimal solution is one, that uses the least buffer across all maximum-scored solutions)
+            - avoid_c:bool=False - if Rrue skip call to c++ back and jump to python-numba implementation
+
+        :param task:
+        :param kwargs:
+        :return: found Solution, main execution time (without pre-calculation)
         """
         self._validate_kwargs(kwargs)
         enable_pruning = kwargs.get("to_prune", True)

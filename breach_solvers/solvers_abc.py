@@ -26,7 +26,6 @@ class Solver(ABC, metaclass=ABCMeta):
     """
     _allowed_kwargs: Dict[str, Type] = {}
 
-    # noinspection PyProtocol
     def __init__(self):
         self._warm_up()
 
@@ -45,14 +44,14 @@ class Solver(ABC, metaclass=ABCMeta):
     def solve(self, task:Task, **kwargs:Any) -> Tuple[Solution|NoSolution, float]:
         """
         'solve' is main method to solve task
-        's' and '__call__' are essentially a shortcuts to 'solve'
+        's' and '__call__' are essentially a shortcuts to 'solve', look __doc__ of subclass solve method
         """
         ...
     __call__.__doc__ = s.__doc__ = solve.__doc__
 
 
     def _validate_kwargs(self, kwargs:Dict[str, Any]) -> None:
-        """Method to validate optional kwargs for some solvers (if needed)"""
+        """Method to validate optional kwargs for solvers main method (if needed)"""
         # Access _allowed_kwargs from the subclass
         allowed_kwargs = self.__class__._allowed_kwargs
         if kwargs and not allowed_kwargs:

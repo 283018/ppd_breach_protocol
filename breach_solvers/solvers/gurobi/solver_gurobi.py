@@ -25,9 +25,7 @@ from gurobipy._exception import GurobiError
 
 
 def ensure_reset(method):
-    """
-    Gurobi solver decorator, ensures model reset on __call__ release.
-    """
+    """Gurobi solver decorator, ensures model reset on solve release."""
     def wrapper(self, *args, **kwargs):
         try:
             return method(self, *args, **kwargs)
@@ -64,10 +62,25 @@ class GurobiSolver(Solver):
 
 
     @ensure_reset
-    def solve(self, task: Task, **kwargs):
-        """Solve breach protol task using linear programming solver Gurobi via gurobipy API."""
+    def solve(self, task: Task, **kwargs) -> Tuple[Solution|NoSolution, float]:
+        """
+        Linear programming solver.
+        Uses Gurobi via gurobipy API.
+        Build constraints-based model to find optimal or near-optimal (if previous is not possible) solutions.
+
+        IMPORTANT: due to Gurobi license limitation can not solve particularly large tasks, will return NoSolution or
+        raise OptimizationError
+
+        Possible keyword arguments:
+            - output_flag:bool=False - if True allow solver to output full optimization information in console.
+            - strict_opt:bool=False - if True enforce strictly optimal solution return, will raise OptimizationError if model build failed or solution status is not optimal.
+
+        :param task:
+        :param kwargs:
+        :return: found Solution or NoSolution, main execution time (without pre-calculation but including model build time)
+        """
         self._validate_kwargs(kwargs)
-        output_flag = kwargs.get('output_flag', 0)
+        output_flag = kwargs.get('output_flag', False)
         strict_opt = kwargs.get('strict_opt', False)
 
         matrix = task.matrix
@@ -124,15 +137,6 @@ class GurobiSolver(Solver):
             -> Tuple[tupledict[Tuple[int, ...], Var], tupledict[int, Var], List[LinExpr]]:
         """
         Model build
-        :param matrix:
-        :param buffer_size:
-        :param demons:
-        :param costs:
-        :param n:
-        :param d_amo:
-        :param d_lengths:
-        :param unused_cell_reward:
-        :return:
         """
         x = self.model.addVars(n, n, buffer_size, vtype=GRB.BINARY, name='x')
 
