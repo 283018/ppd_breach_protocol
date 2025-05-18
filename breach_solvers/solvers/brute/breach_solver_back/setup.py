@@ -56,5 +56,5 @@ setup(
 
 r'''
 Left c++ source just for safety, to rebuild run:
-python .\breach_solvers\brute\breach_solver_back\setup.py build clean --all
+python .\breach_solvers\solvers\brute\breach_solver_back\setup.py build clean --all
 '''

@@ -317,9 +317,7 @@ auto processBreach_fromNumpy(
 
 
 PYBIND11_MODULE(breach_solver_cpp, m) {
-    m.doc() = R"pbdoc(
-        Solve breach protol matrix (on vectors), require padding and pre-processing
-    )pbdoc";
+    m.doc() = "Solve breach protol matrix algorythm stays same as in python/numba version, require padding and pre-processing";
 
     m.def("solve_breach", &processBreach_fromNumpy,
         py::arg("matrix_np"),
