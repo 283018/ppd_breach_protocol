@@ -45,7 +45,7 @@ class Solver(ABC, metaclass=ABCMeta):
     def solve(self, task:Task, **kwargs:Any) -> Tuple[Solution|NoSolution, float]:
         """
         'solve' is main method to solve task
-        's' and '__call__' are essentially a shortcuts 'solve'
+        's' and '__call__' are essentially a shortcuts to 'solve'
         """
         ...
     __call__.__doc__ = s.__doc__ = solve.__doc__
