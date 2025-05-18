@@ -1,7 +1,7 @@
-from breach_solvers.solvers_protocol import Solver, register_solver
+from breach_solvers.solvers_protocol import Solver, SeedableSolver, register_solver
 from core import Task, Solution, DUMMY_TASK
 
-from typing import Tuple, List, Optional
+from typing import List
 from dataclasses import dataclass
 from time import perf_counter
 
@@ -11,7 +11,6 @@ from numpy.random import default_rng, Generator
 from numpy import integer
 
 
-from icecream import ic
 
 
 @dataclass
@@ -34,7 +33,7 @@ class SolCandidate:
 
 
 @register_solver("ant_col")
-class AntColSolver(Solver):
+class AntColSolver(SeedableSolver):
     _allowed_kwargs = {
         "n_ant": int,
         "n_iterations": int,
@@ -72,19 +71,15 @@ class AntColSolver(Solver):
         self.rng = default_rng(seed)
 
     def __call__(self, task: Task, **kwargs):
-        # if not self._initialized:
-        #     self._warm_up()
-
-        # params setup
         self._validate_kwargs(kwargs)
         params = {**self._DEFAULT_PARAMS, **kwargs}
         n_ants = params["n_ants"]
         n_iterations = params["n_iterations"]
 
-        self.alpha = params["alpha"]
-        self.beta = params["beta"]
-        self.evaporation = params["evaporation"]
-        self.q = params["q"]
+        alpha = params["alpha"]
+        beta = params["beta"]
+        evaporation = params["evaporation"]
+        q = params["q"]
 
         # pre-calculations
         n = task.matrix.shape[0]
@@ -95,22 +90,22 @@ class AntColSolver(Solver):
         heuristic = self._get_freqs(task, n, size)
 
         start = perf_counter()
-        best = self._run_ants(task, n_ants, n_iterations, n, pheromone, heuristic)
+        best = self._run_ants(task, n_ants, n_iterations, n, pheromone, heuristic, alpha, beta, evaporation, q)
         end = perf_counter()
 
         return best.accept().fill_solution(task), end - start
 
-    def _run_ants(self, task, n_ants, n_iterations, n, pheromone, heuristic):
+    def _run_ants(self, task, n_ants, n_iterations, n, pheromone, heuristic, alpha, beta, evaporation, q):
         """Main loop"""
         best = None
         for _ in range(n_iterations):
             solutions = [
-                self._construct_solution(task, n, pheromone, heuristic)
+                self._construct_solution(task, n, pheromone, heuristic, alpha, beta)
                 for _ in range(n_ants)
             ]
             best = self._update_best(best, solutions)
             top_solutions = self._select_top_solutions(solutions, n_ants)
-            self._update_pheromones(top_solutions, pheromone, n)
+            self._update_pheromones(top_solutions, pheromone, n, evaporation, q)
         return best
 
     @staticmethod
@@ -130,7 +125,7 @@ class AntColSolver(Solver):
         # ic(h.reshape((n, n)))
         return h
 
-    def _construct_solution(self, task, n, pheromone, heuristic):
+    def _construct_solution(self, task, n, pheromone, heuristic, alpha, beta):
         """
         Construct single path based on pheromone trails and occurrences of symbols (heuristic)
         """
@@ -146,8 +141,7 @@ class AntColSolver(Solver):
 
         while len(path) < task.buffer_size:
             current = self._next_move(
-                current, is_even_step, n, visited, pheromone, heuristic
-            )
+                current, is_even_step, n, visited, pheromone, heuristic, alpha, beta)
 
             if current is None:
                 break
@@ -175,7 +169,7 @@ class AntColSolver(Solver):
             buffer_seq=buffer_vals,
         )
 
-    def _next_move(self, last, is_even, n, visited, pheromone, heuristic):
+    def _next_move(self, last, is_even, n, visited, pheromone, heuristic, alpha, beta):
         """
         Select nest move according to P(ij) formula
         """
@@ -200,8 +194,8 @@ class AntColSolver(Solver):
         scores = []
         for r, c in candidates:
             idx = _to_flat(r, c, n)
-            tau = pheromone[last_idx, idx] ** self.alpha
-            eta = heuristic[idx] ** self.beta
+            tau = pheromone[last_idx, idx] ** alpha
+            eta = heuristic[idx] ** beta
             scores.append(tau * eta)
 
         probs = np.array(scores) / np.sum(scores)
@@ -229,15 +223,16 @@ class AntColSolver(Solver):
         return sorted(solutions, key=lambda s: (-s.cost, s.length * 0.1))[:k]
 
     # * TODO: need be careful with that mutability
-    def _update_pheromones(self, solutions, pheromone, n):
+    @staticmethod
+    def _update_pheromones(solutions, pheromone, n, evaporation, q):
         """
         Update pheromone trails based on best solutions
         """
-        pheromone *= 1 - self.evaporation
+        pheromone *= 1 - evaporation
         for sol in solutions:
             if sol.length <= 1:
                 continue
-            deposit = self.q * sol.cost / sol.length
+            deposit = q * sol.cost / sol.length
             for i in range(sol.length - 1):
                 from_idx = _to_flat(*sol.path[i], n)
                 to_idx = _to_flat(*sol.path[i + 1], n)

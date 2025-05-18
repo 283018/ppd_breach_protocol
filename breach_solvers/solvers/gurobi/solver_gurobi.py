@@ -1,4 +1,4 @@
-from breach_solvers.solvers_protocol import Solver, register_solver, OptimizationError
+from breach_solvers.solvers_protocol import Solver, OptimizationError, register_solver
 from core import Task, Solution, DUMMY_TASK, NoSolution
 
 from numpy import int8, array, zeros, dot

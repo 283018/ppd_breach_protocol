@@ -1,12 +1,9 @@
 from typing import Protocol, Callable, Any, Tuple, Dict, Type
 from core import Task, Solution
 
-class OptimizationError(Exception):
-    """Raised when optimization of a task is not possible"""
-    pass
 
 
-solver_registry = {}
+solver_registry:Dict[str, Callable] = {}
 
 
 def register_solver(name: str) -> Callable[[Any], Any]:
@@ -17,14 +14,20 @@ def register_solver(name: str) -> Callable[[Any], Any]:
     return decorator
 
 
+class OptimizationError(Exception):
+    """Raised when optimization of a task is not possible"""
+    pass
+
+
 class Solver(Protocol):
     _allowed_kwargs: Dict[str, Type] = {}
 
+    # noinspection PyProtocol
     def __init__(self):
         self._warm_up()
 
     def _warm_up(self):
-        raise NotImplementedError()
+        raise NotImplementedError("Subclasses must implement '_warm_up'")
 
     def __call__(self, task:Task, **kwargs) -> Tuple[Solution, float]:
         """Call method takes instance of Task and returns instance of Solution"""
@@ -41,19 +44,10 @@ class Solver(Protocol):
                 raise TypeError(f"Unexpected keyword argument: '{key}'")
             expected_type = allowed_kwargs[key]
             if not isinstance(value, expected_type):
-                raise TypeError(
-                    f"Argument '{key}' must be of type {expected_type.__name__}, got {type(value).__name__}")
+                raise TypeError(f"Argument '{key}' must be of type {expected_type.__name__}, got {type(value).__name__}")
 
 
-# TODO: docstring kwargs update
-def get_solver(name: str) -> Solver:
-    """
-    Get solver instance by name:
-
-    :param name: {'gurobi', 'brute', 'ant_col'}
-    :return: solver instance
-    """
-    solver_class = solver_registry.get(name)
-    if not solver_class:
-        raise ValueError(f"Unknown solver: {name}, must be one of {list(solver_registry.keys())}")
-    return solver_class()
+class SeedableSolver(Solver, Protocol):
+    def seed(self, value: int) -> None:
+        """Set the random number generator seed."""
+        ...

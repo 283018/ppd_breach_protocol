@@ -5,6 +5,16 @@ import platform
 import sys
 import importlib.util
 
+class BreachBuildError(ImportError):
+    def __init__(self):
+        message = \
+        "Build directory not found. Please build the module first:\n"
+        r"'python .\breach_solvers\solvers\brute\breach_solver_back\setup.py build clean --all'"
+        "&&"
+        "'python3 ./breach_solvers/solvers/brute/breach_solver_back/setup.py build clean --all'"
+        super().__init__(message)
+
+
 system = platform.system()
 if system == "Windows":
     build_subdir = "win"
@@ -25,28 +35,13 @@ try:
             module_path = os.path.join(build_dir, file)
             break
 except FileNotFoundError:
-    raise ImportError(
-        "Build directory not found. Please build the module first:\n"
-        r"'python .\breach_solvers\brute\breach_solver_back\setup.py build clean --all'"
-        "&&"
-        "'python3 ./breach_solvers/brute/breach_solver_back/setup.py build clean --all'"
-    )
+    raise BreachBuildError
 
 if module_path is None:
     if not os.path.exists(build_dir):
-        raise ImportError(
-            "Build directory not found. Please build the module first:\n"
-            r"'python .\breach_solvers\brute\breach_solver_back\setup.py build clean --all'"
-            "&&"
-            "'python3 ./breach_solvers/brute/breach_solver_back/setup.py build clean --all'"
-        )
+        raise BreachBuildError
     else:
-        raise ImportError(
-            f"Compiled module '{module_name}' not found in {build_dir}. Please build the module:\n"
-            r"'python .\breach_solvers\brute\breach_solver_back\setup.py build clean --all'"
-            "&&"
-            "'python3 ./breach_solvers/brute/breach_solver_back/setup.py build clean --all'"
-        )
+        raise BreachBuildError
 
 
 spec = importlib.util.spec_from_file_location(module_name, module_path)

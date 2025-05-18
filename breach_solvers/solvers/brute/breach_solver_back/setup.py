@@ -1,4 +1,4 @@
-# breach_solvers/brute/breach_solver_back/setup.py
+# breach_solvers/solvers/brute/breach_solver_back/setup.py
 
 from setuptools import setup, Extension
 import pybind11
