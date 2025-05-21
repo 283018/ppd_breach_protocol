@@ -1,4 +1,4 @@
-from typing import Callable, Any, Tuple, Dict, Type
+from typing import Callable, Any, Tuple, Dict, Type, List
 from abc import ABC, ABCMeta, abstractmethod
 from core import Task, Solution, NoSolution
 
@@ -39,6 +39,15 @@ class Solver(ABC, metaclass=ABCMeta):
 
     def s(self, task:Task, **kwargs:Any) -> Tuple[Solution|NoSolution, float]:
          return self.solve(task, **kwargs)
+
+    def solve_iter(self, task_list:List[Task], **kwargs:Any) -> Tuple[List[Solution|NoSolution], List[float,]]:
+        solved = []
+        times = []
+        for task in task_list:
+            sol, time = self.solve(task, **kwargs)
+            solved.append(sol); times.append(time)
+        return solved, times
+
 
     @abstractmethod
     def solve(self, task:Task, **kwargs:Any) -> Tuple[Solution|NoSolution, float]:
