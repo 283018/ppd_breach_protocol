@@ -45,6 +45,9 @@ class TaskFactory:
         self.costs_gen = BPGen.create('demons_costs', child_gens[2])
 
     def __call__(self, mode: int = 0) -> Task:
+        return self.gen(mode)
+
+    def gen(self, mode: int = 0) -> Task:
         """
         Main generator function.
         :param mode: generation mode
