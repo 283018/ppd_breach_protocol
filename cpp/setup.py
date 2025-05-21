@@ -1,13 +1,13 @@
 # breach_solvers/solvers/brute/breach_solver_back/setup.py
-
 from setuptools import setup, Extension
-import pybind11
 from setuptools.command.build_ext import build_ext
 import sys
 import os
+import pybind11
 
 
-dir_name = os.path.dirname(__file__)
+# dir_name = os.path.dirname(__file__)
+dir_name = os.path.abspath(os.path.dirname(__file__))
 
 if sys.platform == "win32":
     extra_compile_args = ["/std:c++20", "/openmp", "/O2"]
@@ -19,12 +19,22 @@ else:
 ext_modules = [
     Extension(
         "breach_solver_cpp",
-        [os.path.join(dir_name, "breach_solver.cpp")],
+        # ["breach_solver/breach_solver.cpp"],
+        [os.path.join(dir_name, "breach_solver", "breach_solver.cpp")],
         include_dirs=[pybind11.get_include()],
         language="c++",
         extra_compile_args=extra_compile_args,
         extra_link_args=extra_link_args,
-    )
+    ),
+    Extension(
+        "ant_colony_cpp",
+        # ["ant_colony\\ant_colony.cpp"],
+        [os.path.join(dir_name, "ant_colony", "ant_colony.cpp")],
+        include_dirs=[pybind11.get_include()],
+        language="c++",
+        extra_compile_args=extra_compile_args,
+        extra_link_args=extra_link_args,
+    ),
 ]
 
 class PlatformBuildExt(build_ext):
@@ -46,7 +56,7 @@ class PlatformBuildExt(build_ext):
         return os.path.join(target_dir, filename)
 
 setup(
-    name="breach_solver_cpp",
+    name="solver_cpp_extensions",
     version="0.1",
     ext_modules=ext_modules,
     cmdclass={"build_ext": PlatformBuildExt},
@@ -55,6 +65,8 @@ setup(
 
 
 r'''
-Left c++ source just for safety, to rebuild run:
-python .\breach_solvers\solvers\brute\breach_solver_back\setup.py build clean --all
+To rebuild run:
+python .\cpp\setup.py build clean --all
+or
+python3 ./cpp/setup.py build clean --all
 '''
