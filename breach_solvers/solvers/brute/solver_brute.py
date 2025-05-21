@@ -42,7 +42,7 @@ class BruteSolver(Solver):
             - to_prune:bool=True - if True allow B&B pruning, and best-score loop cut, essentially heuristic, that allows for non-optimal solutions (optimal solution is one, that uses the least buffer across all maximum-scored solutions).
             - avoid_c:bool=False - if True skip call to c++ back and jump to python-numba implementation.
 
-        :param task:
+        :param task: Task instance.
         :param kwargs:
         :return: found Solution, main execution time (without pre-calculation)
         """
