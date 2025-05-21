@@ -11,22 +11,17 @@ class TaskFactory:
     """
     Factory for Task, callable object.
 
-    For __call__ supports mode parameter:
-        -3: varying complication of tasks (easy)
+    Support shortcut for .gen with .__call__
 
-        -2: varying complication of tasks (medium)
-
-        -1: varying complication of tasks (hard)
-
-        0: default, high deviation for varying complication of tasks
-
-        1: setted size and lengths, similar to base game bp (easy)
-
-        2: setted size and lengths (medium)
-
-        3: setted size and lengths (hard)
-
-        4: setted size and lengths (very hard)
+    For .gen (main method) supports mode parameter:
+        - -3: varying complication of tasks (easy).
+        - -2: varying complication of tasks (medium).
+        - -1: varying complication of tasks (hard).
+        -  0 : default, high deviation for varying complication of tasks.
+        -  1 : setted size and lengths, similar to base game bp (easy).
+        -  2 : setted size and lengths (medium).
+        -  3 : setted size and lengths (hard).
+        -  4 : setted size and lengths (very hard).
 
     :param seed: optional, seed for main rng, rest derived from it.
     """
@@ -50,15 +45,18 @@ class TaskFactory:
     def gen(self, mode: int = 0) -> Task:
         """
         Main generator function.
+
+        Generation modes:
+            - -3: varying complication of tasks (easy).
+            - -2: varying complication of tasks (medium).
+            - -1: varying complication of tasks (hard).
+            -  0 : default, high deviation for varying complication of tasks.
+            -  1 : setted size and lengths, similar to base game bp (easy).
+            -  2 : setted size and lengths (medium).
+            -  3 : setted size and lengths (hard).
+            -  4 : setted size and lengths (very hard).
+
         :param mode: generation mode
-                    -3: varying complication of tasks (easy)
-                    -2: varying complication of tasks (medium)
-                    -1: varying complication of tasks (hard)
-                    0: default, high deviation for varying complication of tasks
-                    1: setted size and lengths, similar to base game bp (easy)
-                    2: setted size and lengths (medium)
-                    3: setted size and lengths (hard)
-                    4: setted size and lengths (very hard)
         :return: Task instance
         :rtype: Task
         """
@@ -186,15 +184,11 @@ class TaskFactory:
         Does not verify inputs, delegate that to generators.
 
         Matrix mode description & recommended size:
-            0: simulates standard minigame, uses only base game symbols with equal chances; [3-6]
-
-            1: simulates dlc minigame, uses mostly dlc symbols, with small chances for base game symbols; [5-8]
-
-            2: uses full set (base + dlc), slowly decrease chances of appearing for each new symbol, add step for dlc; [6-12]
-
-            3: uses full set with equal chances for all; (>10)
-
-            4:"good luck xD"; not recommended
+            - 0: simulates standard minigame, uses only base game symbols with equal chances; [3-6]
+            - 1: simulates dlc minigame, uses mostly dlc symbols, with small chances for base game symbols; [5-8]
+            - 2: uses full set (base + dlc), slowly decrease chances of appearing for each new symbol, add step for dlc; [6-12]
+            - 3: uses full set with equal chances for all; (>10)
+            - 4:"good luck xD"; not recommended
 
         :param matrix_size:
         :param demons_specs: dict(length:count) | ndarray[i] = count of len i
