@@ -10,10 +10,10 @@ import os
 dir_name = os.path.dirname(__file__)
 
 if sys.platform == "win32":
-    extra_compile_args = ["/std:c++17", "/openmp", "/O2"]
+    extra_compile_args = ["/std:c++20", "/openmp", "/O2"]
     extra_link_args = []
 else:
-    extra_compile_args = ["-std=c++17", "-fopenmp", "-O3"]
+    extra_compile_args = ["-std=c++20", "-fopenmp", "-O3"]
     extra_link_args = ["-fopenmp"]
 
 ext_modules = [

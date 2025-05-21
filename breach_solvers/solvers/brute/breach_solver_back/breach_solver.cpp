@@ -1,12 +1,13 @@
 #include <iostream>
 #include <algorithm>
+//#include <ranges>
+#include <memory>
 
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 
-// ReSharper disable once CppUnusedIncludeDirective
-#include <omp.h>
+//#include <omp.h>
 
 
 struct DFSResult {
@@ -85,18 +86,17 @@ DFSResult processColumn(
         const int curr_score = stack_score[curr_ptr];
 
         // update best path
-        // (curr_score > best_score && curr_len <= buffer_size)
         if (
             (curr_score > best_score ||
              (!enable_pruning && curr_score == best_score && curr_len < best_path_length))
-            && curr_len <= buffer_size) {
+            && curr_len <= buffer_size) [[unlikely]] {
             best_score = curr_score;
             best_path_length = curr_len;
             for (int i = 0; i < curr_len; ++i) {
                 best_path[i * 2] = stack_path[curr_ptr * buffer_size * 2 + i * 2];
                 best_path[i * 2 + 1] = stack_path[curr_ptr * buffer_size * 2 + i * 2 + 1];
             }
-            if (enable_pruning && best_score == max_score) {
+            if (enable_pruning && best_score == max_score) [[likely]] {
                 break;
             }
         }
@@ -115,10 +115,10 @@ DFSResult processColumn(
 
                 if (!stack_used[curr_ptr * n * n + r * n + c]) {
                     const int new_ptr = pointer;
-                    if (new_ptr >= max_stack) break;
+                    if (new_ptr >= max_stack) [[unlikely]] throw std::runtime_error("Stack overflow!");;
 
                     // copy path
-                    std::copy_n(
+                    std::ranges::copy_n(
                         &stack_path[curr_ptr * buffer_size * 2],
                         buffer_size * 2,
                         &stack_path[new_ptr * buffer_size * 2]
@@ -126,21 +126,21 @@ DFSResult processColumn(
                     stack_path[new_ptr * buffer_size * 2 + curr_len * 2] = r;
                     stack_path[new_ptr * buffer_size * 2 + curr_len * 2 + 1] = c;
                     // copy buffer
-                    std::copy_n(
+                    std::ranges::copy_n(
                         &stack_buff[curr_ptr * buffer_size],
                         buffer_size,
                         &stack_buff[new_ptr * buffer_size]
                     );
                     stack_buff[new_ptr * buffer_size + curr_len] = matrix[r * n + c];
                     // copy used mask
-                    std::copy_n(
+                    std::ranges::copy_n(
                         &stack_used[curr_ptr * n * n],
                         n * n,
                         &stack_used[new_ptr * n * n]
                     );
                     stack_used[new_ptr * n * n + r * n + c] = true;
                     // copy active demons
-                    std::copy_n(
+                    std::ranges::copy_n(
                         &stack_activ[curr_ptr * num_demons],
                         num_demons,
                         &stack_activ[new_ptr * num_demons]
@@ -156,10 +156,10 @@ DFSResult processColumn(
                             if (new_len >= k) {
                                 bool match = true;
                                 for (int j = 0; j < k; ++j) {
-                                    if (stack_buff[new_ptr * buffer_size + (new_len - k + j)] != demons_array[d*padded_demon_length + j]) {
-                                        match = false;
-                                        break;
-                                    }
+                                   if (stack_buff[new_ptr * buffer_size + (new_len - k + j)] != demons_array[d*padded_demon_length + j]) {
+                                       match = false;
+                                       break;
+                                   }
                                 }
                                 if (match) {
                                     stack_activ[new_ptr * num_demons + d] = true;
@@ -171,7 +171,7 @@ DFSResult processColumn(
 
                     // optional pruning
                     bool do_push = true;
-                    if (enable_pruning) {
+                    if (enable_pruning) [[likely]] {
                         int rem = 0;
                         for (int d = 0; d < num_demons; ++d) {
                             if (!stack_activ[new_ptr * num_demons + d]) {
@@ -181,7 +181,7 @@ DFSResult processColumn(
                         do_push = (new_score + rem > best_score);
                     }
 
-                    if (do_push) {
+                    if (do_push) [[likely]] {
                         stack_score[new_ptr] = new_score;
                         stack_length[new_ptr] = new_len;
                         ++pointer;
@@ -192,7 +192,7 @@ DFSResult processColumn(
     }
 
     auto path = std::make_unique<int[]>(best_path_length * 2);
-    std::copy_n(best_path.get(), best_path_length * 2, path.get());
+    std::ranges::copy_n(best_path.get(), best_path_length * 2, path.get());
 
     return {std::move(path), best_score, best_path_length};
 }
@@ -218,7 +218,7 @@ DFSResult runParallelColumns(
     auto* all_results = new DFSResult[n];
 
     {
-        py::gil_scoped_release release;     // I am not sure about necessity of that but just to be sure
+        py::gil_scoped_release release;     // in theory that is required, in practise - not really, in my opinion let it be
         #pragma omp parallel for
         for (int start_col = 0; start_col < n; ++start_col) {
             all_results[start_col] = processColumn(
@@ -306,7 +306,7 @@ auto processBreach_fromNumpy(
     // translating back to numpy
     py::array_t<int32_t> path_array({best_result.length, 2});
     const auto path_data = static_cast<int32_t*>(path_array.request().ptr);
-    std::copy_n(
+    std::ranges::copy_n(
         best_result.path.get(),
         2 * best_result.length,
         path_data
