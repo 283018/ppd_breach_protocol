@@ -1,33 +1,38 @@
 from breach_solvers.solvers_abc import SeedableSolver, register_solver
 from core import Task, Solution, DUMMY_TASK
+from cpp import ant_colony
 
-from typing import List
+from numpy import array, full, ones, array_equal, concatenate, bincount, ndarray, integer, int8
+from numpy.random import default_rng, Generator
+from numpy import sum as npsum
 from dataclasses import dataclass
 from time import perf_counter
 
-# from numpy import ndarray, integer, int8, int16, bool_, array, zeros, empty
-import numpy as np
-from numpy.random import default_rng, Generator
-from numpy import integer, ndarray
+from typing import List, Tuple
+from numpy.typing import NDArray
 
-from icecream import ic
+
 
 
 @dataclass
 class SolCandidate:
     """
     Temporary encapsulation for solution candidate
+        - path: ndarray
+        - cost: int
+        - length: int
+        - buffer_seq: List[int|integer] | Tuple[int|integer] | NDArray[int8]
     """
 
-    path: np.ndarray
+    path: ndarray
     cost: int
     length: int
-    buffer_seq: List[int | integer]
+    buffer_seq: List[int|integer] | Tuple[int|integer] | NDArray[int8]
 
     def accept(self):
         return Solution(
             path=self.path,
-            buffer_sequence=np.array(self.buffer_seq),
+            buffer_sequence=array(self.buffer_seq),
             total_points=self.cost,
         )
 
@@ -35,6 +40,8 @@ class SolCandidate:
 @register_solver("ant_col")
 class AntColSolver(SeedableSolver):
     _allowed_kwargs = {
+        "avoid_c_back":bool,
+
         "n_ant": int,
         "n_iterations": int,
         "alpha": float,
@@ -44,6 +51,8 @@ class AntColSolver(SeedableSolver):
     }
 
     _DEFAULT_PARAMS = {
+        "avoid_c_back":False,
+
         "n_ants": 50,
         "n_iterations": 100,
         "alpha": 1.0,
@@ -73,8 +82,32 @@ class AntColSolver(SeedableSolver):
 
 
     def solve(self, task: Task, **kwargs):
+        """
+        Ant-colony solver.
+
+        Meta-heuristic approach, uses ant-colony optimization algorithm.
+        Uses c++ module if possible.
+        If c++ back fails, run python based methods, which takes ~10-12 more time
+
+        Possible keyword arguments:
+            - avoid_c:bool=False - if True skip call to c++ back and jump to pure python implementation.
+
+            - n_ants:int - amount of ants to run in one iteration.
+            - n_iterations:int - amount of iterations.
+            - alpha:float - attractiveness of pheromone trail on ants.
+            - beta:float - importance of heuristic matrix (attractiveness of cells with higher reward)
+            - evaporation:float - pheromone decay tempo.
+            - q:float - amount of pheromones each ant leave on their path
+
+        :param task: Task instance.
+        :param kwargs:
+        :return: found Solution, main execution time (without pre-calculation)
+        """
+
         self._validate_kwargs(kwargs)
         params = {**self._DEFAULT_PARAMS, **kwargs}
+        avoid_c_back = params["avoid_c_back"]
+
         n_ants = params["n_ants"]
         n_iterations = params["n_iterations"]
 
@@ -83,41 +116,79 @@ class AntColSolver(SeedableSolver):
         evaporation = params["evaporation"]
         q = params["q"]
 
+
         matrix = task.matrix
         demons = task.demons
         demons_costs = task.demons_costs
         buffer_size = task.buffer_size
 
         # pre-calculations
-        n = matrix.shape[0]
+        n, _ = matrix.shape
         size = matrix.size
 
-        # starting pheromones and heuristic
-        pheromone = np.ones((size, size), dtype=float)
-        heuristic = self._get_freqs(task, n, size)
+        num_demons = len(demons)
+        demons_lengths = array([d.size for d in demons])
+        max_demon_len = max(demons_lengths)
+        padded_demons = full((num_demons, max_demon_len), -1, dtype=int8)
+        for i, d in enumerate(demons):
+            padded_demons[i, :d.size] = d
+        flat_demons = padded_demons.ravel()
 
-        start = perf_counter()
-        best = self._run_ants(matrix, demons, demons_costs, buffer_size, n_ants, n_iterations, n, pheromone, heuristic, alpha, beta, evaporation, q)
-        end = perf_counter()
+        # starting pheromones and heuristic
+        pheromone = ones((size, size), dtype=float)
+        heuristic = self._get_freqs(task)
+        seed =  self.rng.integers(0, 2**32-1)
+
+        # creating args pools
+        common_args = (
+            matrix, demons,
+            demons_costs, buffer_size,
+            n_ants, n_iterations,
+            n, pheromone, heuristic,
+            alpha, beta,
+            evaporation, q,
+        )
+
+        cpp_args = (
+            matrix, flat_demons,
+            demons_costs, buffer_size,
+            n, num_demons,
+            demons_lengths, max_demon_len,
+            heuristic,
+            alpha, beta,
+            evaporation, q,
+            seed, n_ants, n_iterations,
+        )
+        
+
+        if avoid_c_back:
+            print("\nJumped to pyton")
+            start = perf_counter()
+            best = self._run_ants(*common_args)
+            end = perf_counter()
+        else:
+            try:
+                start = perf_counter()
+                res = ant_colony(*cpp_args)
+                end = perf_counter()
+                best = SolCandidate(*res)
+            except Exception as e:
+                print(f"\nError on c++ back, running python ({e})")
+                start = perf_counter()
+                best = self._run_ants(*common_args)
+                end = perf_counter()
 
         return best.accept().fill_solution(task), end - start
 
     @staticmethod
-    def _get_freqs(task, n, size):
+    def _get_freqs(task):
         """
-        |Precalculation| = Calculate attractiveness of each cell (flattened), based on frequency of symbols appearance
+        |Precalculation|: Calculate attractiveness of each cell (flattened), based on frequency of symbols appearance
         """
-        occurrence = np.zeros(100, dtype=int)
-        for demon in task.demons:
-            for s in demon:
-                occurrence[s] += 1
+        all_symbols = concatenate(task.demons)
+        occurrence = bincount(all_symbols, minlength=100)
+        h = occurrence[task.matrix.ravel()]
 
-        h = np.zeros(size, dtype=int)
-        for idx in range(size):
-            r, c = _to_shape(idx, n)
-            h[idx] = occurrence[task.matrix[r, c]]
-        ic(h.reshape((n, n)))
-        ic(h)
         return h
 
     def _run_ants(self, matrix, demons, demons_costs, buffer_size, n_ants, n_iterations, n, pheromone, heuristic, alpha, beta, evaporation, q):
@@ -165,18 +236,18 @@ class AntColSolver(SeedableSolver):
 
         # scoring paths
         total = 0
-        seq = np.array(buffer_vals, dtype=int)
+        seq = array(buffer_vals, dtype=int)
         for demon, cost in zip(demons, demons_costs):
             dlen = len(demon)
             if dlen == 0:
                 continue
             for i in range(len(seq) - dlen + 1):
-                if np.array_equal(seq[i : i + dlen], demon):
+                if array_equal(seq[i : i + dlen], demon):
                     total += cost
                     break
 
         return SolCandidate(
-            path=np.array(path, dtype=np.int8),
+            path=array(path, dtype=int8),
             cost=total,
             length=len(path),
             buffer_seq=buffer_vals,
@@ -189,13 +260,9 @@ class AntColSolver(SeedableSolver):
         # generating valid candidates from current position
         r, c = last
         if is_even:
-            candidates = [
-                (r, col) for col in range(n) if col != c and (r, col) not in visited
-            ]
+            candidates = [(r, col) for col in range(n) if col != c and (r, col) not in visited]
         else:
-            candidates = [
-                (row, c) for row in range(n) if row != r and (row, c) not in visited
-            ]
+            candidates = [(row, c) for row in range(n) if row != r and (row, c) not in visited]
 
         if not candidates:
             return None
@@ -211,7 +278,7 @@ class AntColSolver(SeedableSolver):
             eta = heuristic[idx] ** beta
             scores.append(tau * eta)
 
-        probs = np.array(scores) / np.sum(scores)
+        probs = array(scores) / npsum(scores)
         return candidates[self.rng.choice(len(candidates), p=probs)]
 
     @staticmethod
@@ -258,5 +325,5 @@ def _to_flat(r, c, n):
     return r * n + c
 
 def _to_shape(idx, n):
-    """Convert 1D index to 2D matrix coords"""
+    """Convert 1D index to 2d matrix coords"""
     return divmod(idx, n)

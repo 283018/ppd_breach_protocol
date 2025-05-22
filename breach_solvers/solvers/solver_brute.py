@@ -1,12 +1,13 @@
 from breach_solvers.solvers_abc import Solver, register_solver
 from core import Task, Solution, DUMMY_TASK
-from .breach_solver_back import solve_breach
+from cpp import brute_force
 
-from numpy import ndarray, integer, int8, int16, bool_, array, zeros, empty
 from time import perf_counter
+from numpy import ndarray, integer, int8, int16, bool_, array, zeros, empty
+from numba import njit, prange
+
 from typing import Tuple, Any
 
-from numba import njit, prange
 
 
 
@@ -86,7 +87,7 @@ class BruteSolver(Solver):
         else:
             try:
                 start = perf_counter()
-                best_path = solve_breach(*args)
+                best_path = brute_force(*args)
                 end = perf_counter()
             except Exception as e:
                 print(f"\nError on c++ back, running numba ({e})")
