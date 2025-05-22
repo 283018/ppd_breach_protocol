@@ -38,7 +38,6 @@ class Task:
             raise ValueError("matrix must be square 2d array")
         if not isinstance(buffer_size, (int, integer)) or buffer_size < 1:
             raise TypeError("buffer_size must be positive integer")
-        # n = matrix.shape[0]
         d_amo = len(demons)
         if demons_cost.shape[0] != d_amo:
             raise ValueError("demons and d_costs must have the same length")
