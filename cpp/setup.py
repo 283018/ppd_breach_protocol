@@ -6,7 +6,6 @@ import os
 import pybind11
 
 
-# dir_name = os.path.dirname(__file__)
 dir_name = os.path.abspath(os.path.dirname(__file__))
 
 if sys.platform == "win32":
@@ -19,8 +18,7 @@ else:
 ext_modules = [
     Extension(
         "breach_solver_cpp",
-        # ["breach_solver/breach_solver.cpp"],
-        [os.path.join(dir_name, "breach_solver", "breach_solver.cpp")],
+        [os.path.join(dir_name, "breach_solver_source", "breach_solver.cpp")],
         include_dirs=[pybind11.get_include()],
         language="c++",
         extra_compile_args=extra_compile_args,
@@ -28,8 +26,7 @@ ext_modules = [
     ),
     Extension(
         "ant_colony_cpp",
-        # ["ant_colony\\ant_colony.cpp"],
-        [os.path.join(dir_name, "ant_colony", "ant_colony.cpp")],
+        [os.path.join(dir_name, "ant_colony_source", "ant_colony.cpp")],
         include_dirs=[pybind11.get_include()],
         language="c++",
         extra_compile_args=extra_compile_args,
