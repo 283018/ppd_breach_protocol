@@ -319,7 +319,7 @@ auto processBreach_fromNumpy(
 PYBIND11_MODULE(breach_solver_cpp, m) {
     m.doc() = "Solve breach protol matrix algorythm stays same as in python/numba version, require padding and pre-processing";
 
-    m.def("solve_breach", &processBreach_fromNumpy,
+    m.def("brute_force", &processBreach_fromNumpy,
         py::arg("matrix_np"),
         py::arg("demons_array_np"),
         py::arg("demons_lengths_np"),
