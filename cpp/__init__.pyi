@@ -1,7 +1,7 @@
 # cpp/__init__.py
 # a little clumsy, but since imports made with importlib on runtime, typecheckers says "nuh-uh"
 
-from numpy import int8, float64, int32, int64
+from numpy import int8, float64, int32, int64, integer
 from numpy.typing import NDArray
 
 
@@ -22,7 +22,7 @@ def ant_colony(
     seed: int,
     n_ants: int,
     n_iterations: int
-) -> tuple[NDArray[int8], NDArray[int8], int]:
+) -> tuple[NDArray[int8], int|integer, int|integer, NDArray[int8]]:
     """
     Solve breach protocol task with ant colony optimization, using c++ back.
 
@@ -52,7 +52,7 @@ def ant_colony(
     :param seed: seed in range (0, 2³²-1)
     :param n_ants:
     :param n_iterations:
-    :return:
+    :return: tuple of path as 2d ndarray (nx2), cost, length of path, buffer sequence as 1d ndarray
     """
     ...
 
