@@ -4,7 +4,7 @@ from .base_setup import HEX_MAP, HEX_MAP_REVERSE, BASE_INTS, DLC_INTS, BASE_HEXS
 from .solution_verifier import validate_solution, verify_solution
 
 from .datastructures import Task, DUMMY_TASK, Solution, NoSolution
-from .interface import map_breach, aligned_print, mat_print, solution_print
+from .interface import map_breach, aligned_print, mat_print, bprint
 
 
 
