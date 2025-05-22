@@ -12,7 +12,7 @@ from typing import List, Tuple
 from numpy.typing import NDArray
 
 
-
+RANGE_INT32 = (0, 2**32-1)
 
 @dataclass
 class SolCandidate:
@@ -137,7 +137,7 @@ class AntColSolver(SeedableSolver):
         # starting pheromones and heuristic
         pheromone = ones((size, size), dtype=float)
         heuristic = self._get_freqs(task)
-        seed =  self.rng.integers(0, 2**32-1)
+        seed =  self.rng.integers(*RANGE_INT32)
 
         # creating args pools
         common_args = (
