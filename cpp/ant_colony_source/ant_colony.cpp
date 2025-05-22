@@ -1,13 +1,16 @@
 #include <optional>
 #include <random>
 #include <algorithm>
+#include <ranges>
 #include <stdexcept>
 #include <cmath>
 #include <utility>
 #include <iostream>
 #include <memory>
+
+// only for conversion in python interface
 #include <cstdint>
-#include <vector>   // only for conversion in python interface
+#include <vector>
 
 
 
@@ -42,13 +45,13 @@ struct SolCandidate {
         std::unique_ptr<std::pair<int, int>[]> new_path;
         if (path && length > 0) {
             new_path = std::make_unique<std::pair<int, int>[]>(length);
-            std::copy_n(path.get(), length, new_path.get());
+            std::ranges::copy_n(path.get(), length, new_path.get());
         }
 
         std::unique_ptr<int[]> new_buffer;
         if (buffer_seq && length > 0) {
             new_buffer = std::make_unique<int[]>(length);
-            std::copy_n(buffer_seq.get(), length, new_buffer.get());
+            std::ranges::copy_n(buffer_seq.get(), length, new_buffer.get());
         }
 
         return {std::move(new_path), cost, length, std::move(new_buffer)};
