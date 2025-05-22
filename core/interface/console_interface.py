@@ -1,6 +1,13 @@
-from numpy import ndarray
+from numba.core.ir import Print
+
 from core.datastructures import Task, Solution, NoSolution
 from .breach_translator import map_breach
+
+from numpy import ndarray
+from multipledispatch import dispatch
+
+from typing import List, Tuple
+from collections.abc import Sequence
 
 
 SUPERSCRIPT_MAP = str.maketrans('0123456789', '⁰¹²³⁴⁵⁶⁷⁸⁹')
@@ -81,24 +88,142 @@ def mat_print(matrix, path=None) -> None:
 
 
 #* TODO: encapsulation
-#! TODO: add .__str__
-def solution_print(task:Task|None=None, solution:Solution|None|NoSolution=None, translate:bool=False) -> None:
+#? TODO: add .__str__
+
+@dispatch(Task, (Solution, NoSolution), bool)
+def bprint(task:Task, solution:Solution|NoSolution, translate:bool=False) -> None:
     """
-    Print given Task and Solution in console.
-    :param task: core.datastructures.task.Task
-    :param solution: core.datastructures.solution.Solution
-    :param translate: if True prints translated matrix and demons, do not alter original instances of task and solution
+    Print given single Task and single Solution in console.
     """
-    if task is not None and solution is not None:
-        _full_print(task, solution, translate=translate)
-    elif task is not None and solution is None:
-        print(task)
-    elif task is None and solution is not None:
-        print(solution)
-    elif task is None and solution is None:
+    _full_print(task, solution, translate)
+    print()
+
+@dispatch(Task, (Solution, NoSolution), float, bool)
+def bprint(task:Task, solution:Solution|NoSolution, time, translate:bool=False) -> None:
+    """
+    Print given single Task, single Solution and time in console.
+    """
+    _full_print(task, solution, translate)
+    print(f"{time:.4}\n")
+    print()
+
+@dispatch(Task, (list, tuple), bool)
+def bprint(task:Task, solutions:Sequence[Solution|NoSolution], translate:bool=False) -> None:
+    """
+    Prints single Tasks with multiple given Solutions in console.
+    """
+    if not all(isinstance(sol, (Solution, NoSolution)) for sol in solutions):
+        raise TypeError(f"all solution must be of type {Solution} or {NoSolution}")
+    for sol in solutions:
+        _full_print(task, sol, translate)
         print()
-    else:
-        raise NotImplementedError("Printing error, unknown task or solution combination")
+
+@dispatch((list, tuple), (list, tuple), bool)
+def bprint(tasks:Sequence[Task], solutions:Sequence[Solution], translate:bool=False) -> None:
+    """
+    Prints multiple Tasks with multiple given Solutions in console.
+    """
+    if len(tasks) != len(solutions):
+        raise ValueError(f"Lengths are not equal: {len(tasks)}, {len(solutions)}")
+    for task, solution in zip(tasks, solutions):
+        if not isinstance(task, Task) or not isinstance(solution, (Solution, NoSolution)):
+            raise TypeError(f"(task, solution) pair must be of types ({Task}, {Solution}|{NoSolution}), not ({type(task)}, {type(solution)})")
+        _full_print(task, solution, translate)
+        print()
+
+
+@dispatch(Task, bool)
+def bprint(task:Task, translate:bool=False) -> None:
+    """
+    Prints Single Task in console.
+    """
+    _task_print(task, translate)
+
+@dispatch((list, tuple), bool)
+def bprint(tasks:Sequence[Task], translate:bool=False) -> None:
+    """
+    Prints multiple Task in console.
+    """
+    for task in tasks:
+        if not isinstance(task, Task):
+            raise TypeError(f"task must be of type {Task}, not {type(task)}")
+        _task_print(task, translate)
+        print()
+
+
+@dispatch(Task, (Solution, NoSolution), float, bool)
+def bprint(task:Task, solution:Solution|NoSolution, time, translate:bool=False) -> None:
+    """
+    Prints single Tasks with single Solutions and time in console.
+    """
+    _full_print(task, solution, translate)
+    print(f"{time:.4}\n")
+
+
+@dispatch(Task, (list, tuple), (list, tuple), bool)
+def bprint(task:Task, solutions:Sequence[Solution|NoSolution], times:Sequence[float], translate:bool=False) -> None:
+    """
+    Prints single Tasks with multiple given Solutions and times in console.
+    """
+    if len(solutions) != len(times):
+        raise ValueError(f"Lengths are not equal: {len(solutions)} ,{len(times)}")
+    if (not all(isinstance(sol, (Solution, NoSolution)) for sol in solutions) or
+            not all(isinstance(time, float) for time in times)):
+        raise TypeError(f"all solution must be of type {Solution} or {NoSolution}, and all times must be float")
+    for sol in solutions:
+        _full_print(task, sol, translate)
+        print()
+    for time in times:
+        print(f"{time:.4}")
+    print()
+
+@dispatch((list, tuple), (list, tuple), (list, tuple), bool)
+def bprint(tasks:Sequence[Task], solutions:Sequence[Solution|NoSolution], times:Sequence[float], translate:bool=False) -> None:
+    """
+    Multiple dispatched function for printing Tasks and Solution in console.
+
+    Note:
+        Due to limitations of multipledispatch does not support keyword arguments.
+
+        Sequence[] typehint used only for simplicity, dispatcher accept only List or Tuple (or their inheritances) with mentioned structs.
+
+
+    Accept different combinations of arguments:
+        - Task, translate - single task
+        - Sequence[Task], translate - multiple tasks
+        - Task, Solution|NoSolution, translate - prints single task and solution
+        - Task, Sequence[Solution|NoSolution], translate - prints single task with different solutions
+        - Sequence[Task], Sequence[Solution|NoSolution], translate - prints multiple tasks with corresponding solutions
+        - Task, Solution|NoSolution, time, translate - prints single task, solution and time
+        - Task, Sequence[Solution|NoSolution], Sequence[float], translate - single tasks with corresponding solutions and times of solving
+        - Sequence[Task], Sequence[Solution|NoSolution], Sequence[float], translate - multiple tasks with corresponding solutions and time of solving
+
+    """
+    if len(tasks) != len(solutions) != len(times):
+        raise ValueError(f"Lengths are not equal: {len(tasks)}, {len(solutions)} ,{len(times)}")
+    for task, solution, time in zip(tasks, solutions, times):
+        if not isinstance(task, Task) or not isinstance(solution, (Solution, NoSolution)):
+            raise TypeError(f"(task, solution) pair must be of types ({Task}, {Solution}|{NoSolution}), not ({type(task)}, {type(solution)})")
+        _full_print(task, solution, translate)
+        print(f"Time: {time:.4}\n")
+
+
+
+def _task_print(task: Task, translate: bool = False) -> None:
+    matrix = task.matrix
+    demons = task.demons
+    buffer_size = task.buffer_size
+    demons_costs = task.demons_costs
+
+    if translate:
+        matrix = map_breach(matrix)
+        demons = map_breach(demons)
+
+    print("Matrix: ")
+    mat_print(matrix)
+    print("Demons: ")
+    aligned_print(demons, demons_costs)
+    print(f"Buffer: {buffer_size}")
 
 
 def _full_print(task, solution, translate):
@@ -154,7 +279,6 @@ def _full_print(task, solution, translate):
     points_str = f"{total_points}/{demons_costs_sum}"
     used_buffer_str = f"{used_buffer}/{buffer_size}"
 
-    print()
     print("Matrix: ")
     mat_print(matrix, path=path)
     print("Demons: ")
@@ -162,4 +286,5 @@ def _full_print(task, solution, translate):
     aligned_print([[demons_active_str]], [points_str])
     print("Buffer: ")
     aligned_print([buffer_sequence], [used_buffer_str])
-    print()
+    if is_no_sol:
+        print(f"Reason:\n{solution.reason}")
