@@ -4,6 +4,8 @@ from numpy.random import Generator, SeedSequence, default_rng, PCG64
 from .breach_generator import BPGen
 from core import Task
 
+from typing import List
+
 
 TASK_MODES = set(range(-3, 5))
 
@@ -42,9 +44,11 @@ class TaskFactory:
     def __call__(self, mode: int = 0) -> Task:
         return self.gen(mode)
 
-    def gen(self, mode: int = 0) -> Task:
+    def gen(self, mode: int = 0, amount:int=1) -> Task|List[Task]:
         """
         Main generator function.
+
+        If param: amount >1 returns list with tasks, if default - single instance.
 
         Generation modes:
             - -3: varying complication of tasks (easy).
@@ -57,12 +61,14 @@ class TaskFactory:
             -  4 : setted size and lengths (very hard).
 
         :param mode: generation mode
-        :return: Task instance
-        :rtype: Task
+        :param amount: optional: amount of task to generate
+        :return: Task instance or list of Task instances
         """
 
         if mode not in TASK_MODES:
             raise ValueError(f"invalid mode must be on of {TASK_MODES}")
+        if not isinstance(amount, int) or amount <= 0:
+            raise ValueError("amount must be positive integer")
 
         size = 0
         demon_specs = zeros(10, dtype=int8)
@@ -170,18 +176,31 @@ class TaskFactory:
                 buffer_length = max_demon_length + self.rng.integers(0, 3)  # noqa (numpy int vs python int)
 
         # Generate game data
-        matrix = self.mat_gen(size, mat_mode)
-        demons = self.demons_gen(matrix, demon_specs)
-        costs = self.costs_gen(demons)
+        # matrix = self.mat_gen(size, mat_mode)
+        # demons = self.demons_gen(matrix, demon_specs)
+        # costs = self.costs_gen(demons)
+        # return Task(matrix, demons, costs, buffer_length)
 
-        return Task(matrix, demons, costs, buffer_length)
+        tasks = [
+            Task(
+                matrix := self.mat_gen(size, mat_mode),
+                demons := self.demons_gen(matrix, demon_specs),
+                self.costs_gen(demons),
+                buffer_length,
+            ) for _ in range(amount)
+        ]
+        if amount == 1:
+            return tasks[0]
+        else:
+            return tasks
 
 
-    def gen_manual(self, matrix_size:int, demons_specs:dict|ndarray, buffer_size:int, matrix_mode:int=0) -> Task:
+    def gen_manual(self, matrix_size:int, demons_specs:dict|ndarray, buffer_size:int, matrix_mode:int=0, amount:int=1) -> Task|List[Task]:
         """
         Manually generates Task according to given parameters.
 
         Does not verify inputs, delegate that to generators.
+        if param: amount >1 returns list with tasks, if default - single instance
 
         Matrix mode description & recommended size:
             - 0: simulates standard minigame, uses only base game symbols with equal chances; [3-6]
@@ -194,12 +213,24 @@ class TaskFactory:
         :param demons_specs: dict(length:count) | ndarray[i] = count of len i
         :param buffer_size:
         :param matrix_mode: (copied from GeneratorMatrix)
-        :return: Task instance
+        :param amount: optional: amount of task to generate
+        :return: Task instance or list of Task instances
         """
-        matrix = self.mat_gen(matrix_size, matrix_mode)
-        demons = self.demons_gen(matrix, demons_specs)
-        costs = self.costs_gen(demons)
-        return Task(matrix, demons, costs, buffer_size)
+        if not isinstance(amount, int) or amount <= 0:
+            raise ValueError("amount must be positive integer")
+        tasks = [
+            Task(
+                matrix := self.mat_gen(matrix_size, matrix_mode),
+                demons := self.demons_gen(matrix, demons_specs),
+                self.costs_gen(demons),
+                buffer_size,
+            ) for _ in range(amount)
+        ]
+        if amount == 1:
+            return tasks[0]
+        else:
+            return tasks
+
 
 
 
