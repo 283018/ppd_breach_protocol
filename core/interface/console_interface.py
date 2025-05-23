@@ -97,6 +97,9 @@ def bprint(task:Task, solution:Solution|NoSolution, translate:bool=False) -> Non
     """
     _full_print(task, solution, translate)
     print()
+@dispatch(Task, (Solution, NoSolution))
+def bprint(task:Task, solution:Solution|NoSolution) -> None:
+    bprint(task, solution, False)
 
 @dispatch(Task, (Solution, NoSolution), float, bool)
 def bprint(task:Task, solution:Solution|NoSolution, time, translate:bool=False) -> None:
@@ -106,6 +109,9 @@ def bprint(task:Task, solution:Solution|NoSolution, time, translate:bool=False) 
     _full_print(task, solution, translate)
     print(f"{time:.4}\n")
     print()
+@dispatch(Task, (Solution, NoSolution), float)
+def bprint(task:Task, solution:Solution|NoSolution, time) -> None:
+    bprint(task, solution, time, False)
 
 @dispatch(Task, (list, tuple), bool)
 def bprint(task:Task, solutions:Sequence[Solution|NoSolution], translate:bool=False) -> None:
@@ -117,6 +123,9 @@ def bprint(task:Task, solutions:Sequence[Solution|NoSolution], translate:bool=Fa
     for sol in solutions:
         _full_print(task, sol, translate)
         print()
+@dispatch(Task, (list, tuple))
+def bprint(task:Task, solutions:Sequence[Solution|NoSolution]) -> None:
+    bprint(task, solutions, False)
 
 @dispatch((list, tuple), (list, tuple), bool)
 def bprint(tasks:Sequence[Task], solutions:Sequence[Solution], translate:bool=False) -> None:
@@ -130,6 +139,9 @@ def bprint(tasks:Sequence[Task], solutions:Sequence[Solution], translate:bool=Fa
             raise TypeError(f"(task, solution) pair must be of types ({Task}, {Solution}|{NoSolution}), not ({type(task)}, {type(solution)})")
         _full_print(task, solution, translate)
         print()
+@dispatch((list, tuple), (list, tuple))
+def bprint(tasks:Sequence[Task], solutions:Sequence[Solution]) -> None:
+    bprint(tasks, solutions, False)
 
 
 @dispatch(Task, bool)
@@ -138,6 +150,9 @@ def bprint(task:Task, translate:bool=False) -> None:
     Prints Single Task in console.
     """
     _task_print(task, translate)
+@dispatch(Task)
+def bprint(task:Task) -> None:
+    bprint(task, False)
 
 @dispatch((list, tuple), bool)
 def bprint(tasks:Sequence[Task], translate:bool=False) -> None:
@@ -149,7 +164,9 @@ def bprint(tasks:Sequence[Task], translate:bool=False) -> None:
             raise TypeError(f"task must be of type {Task}, not {type(task)}")
         _task_print(task, translate)
         print()
-
+@dispatch((list, tuple))
+def bprint(tasks:Sequence[Task]) -> None:
+    bprint(tasks, False)
 
 @dispatch(Task, (Solution, NoSolution), float, bool)
 def bprint(task:Task, solution:Solution|NoSolution, time, translate:bool=False) -> None:
@@ -158,6 +175,9 @@ def bprint(task:Task, solution:Solution|NoSolution, time, translate:bool=False) 
     """
     _full_print(task, solution, translate)
     print(f"{time:.4}\n")
+@dispatch(Task, (Solution, NoSolution), float)
+def bprint(task:Task, solution:Solution|NoSolution, time) -> None:
+    bprint(task, solution, time, False)
 
 
 @dispatch(Task, (list, tuple), (list, tuple), bool)
@@ -176,7 +196,14 @@ def bprint(task:Task, solutions:Sequence[Solution|NoSolution], times:Sequence[fl
     for time in times:
         print(f"{time:.4}")
     print()
+@dispatch(Task, (list, tuple), (list, tuple))
+def bprint(task:Task, solutions:Sequence[Solution|NoSolution], times:Sequence[float]) -> None:
+    bprint(task, solutions, times, False)
 
+
+@dispatch((list, tuple), (list, tuple), (list, tuple), bool)
+def bprint(tasks:Sequence[Task], solutions:Sequence[Solution|NoSolution], times:Sequence[float]) -> None:
+    bprint(tasks, solutions, times, False)
 @dispatch((list, tuple), (list, tuple), (list, tuple), bool)
 def bprint(tasks:Sequence[Task], solutions:Sequence[Solution|NoSolution], times:Sequence[float], translate:bool=False) -> None:
     """
