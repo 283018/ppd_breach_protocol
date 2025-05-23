@@ -111,7 +111,7 @@ class GurobiSolver(Solver):
         time_end = perf_counter()
 
         if opt_message is not None:
-            return NoSolution(reason=opt_message), -1
+            return NoSolution(reason=opt_message), 0.0
 
         if self.model.status != GRB.OPTIMAL:
             if strict_opt:

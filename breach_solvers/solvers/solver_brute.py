@@ -7,6 +7,7 @@ from numpy import ndarray, integer, int8, int16, bool_, array, zeros, empty
 from numba import njit, prange
 
 from typing import Tuple, Any
+from warnings import warn
 
 
 
@@ -90,7 +91,7 @@ class BruteSolver(Solver):
                 best_path = brute_force(*args)
                 end = perf_counter()
             except Exception as e:
-                print(f"\nError on c++ back, running numba ({e})")
+                warn(f"\nError on c++ back:\n{e}\n Running numba...")
                 start = perf_counter()
                 best_path = self._process_all_columns_numba(*args)
                 end = perf_counter()
