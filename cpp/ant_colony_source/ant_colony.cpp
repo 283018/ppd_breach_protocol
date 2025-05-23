@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <vector>
 
+#include <omp.h>
 
 
 #include <pybind11/pybind11.h>
@@ -45,13 +46,13 @@ struct SolCandidate {
         std::unique_ptr<std::pair<int, int>[]> new_path;
         if (path && length > 0) {
             new_path = std::make_unique<std::pair<int, int>[]>(length);
-            std::ranges::copy_n(path.get(), length, new_path.get());
+            std::ranges::copy_n(path.get(), static_cast<int>(length), new_path.get());
         }
 
         std::unique_ptr<int[]> new_buffer;
         if (buffer_seq && length > 0) {
             new_buffer = std::make_unique<int[]>(length);
-            std::ranges::copy_n(buffer_seq.get(), length, new_buffer.get());
+            std::ranges::copy_n(buffer_seq.get(), static_cast<int>(length), new_buffer.get());
         }
 
         return {std::move(new_path), cost, length, std::move(new_buffer)};
@@ -72,10 +73,12 @@ class Solver {
     const double* heuristic;
     const double alpha;
     const double beta;
-    const double evaporation;
+    const double evap_factor;
     const double q;
+    alignas(32) std::unique_ptr<double[]> pheromone;
 
     std::mt19937 rng;
+    std::unique_ptr<std::mt19937[]> ant_rngs;
 
     static int to_flat(const int r, const int c, const int n) { return r * n + c; }
 
@@ -95,7 +98,7 @@ class Solver {
         const std::pair<int, int>& last,
         const bool is_even,
         const bool* visited,
-        double** pheromone) {
+        std::mt19937& rng) const {
         const int max_candidates = n - 1;
         auto candidates = std::make_unique<std::pair<int, int>[]>(max_candidates);
         int candidate_count = 0;
@@ -124,7 +127,7 @@ class Solver {
         for (int i = 0; i < candidate_count; ++i) {
             const auto& [row, col] = candidates[i];
             const int idx = to_flat(row, col, n);
-            const double tau = std::pow(pheromone[last_idx][idx], alpha);
+            const double tau = std::pow(pheromone[last_idx * matrix_size + idx], alpha);
             const double eta = std::pow(heuristic[idx], beta);
             scores[i] = tau * eta;
             total += scores[i];
@@ -142,13 +145,14 @@ class Solver {
         return result;
     }
 
-    SolCandidate construct_solution(double** pheromone) {
+    SolCandidate construct_solution(const int ant_idx) {
         auto path = std::make_unique<std::pair<int, int>[]>(buffer_size);
         auto buffer_vals = std::make_unique<int[]>(buffer_size);
         auto visited = std::make_unique<bool[]>(matrix_size);
+        auto& local_rng = ant_rngs[ant_idx];
 
         std::uniform_int_distribution col_dist(0, n - 1);
-        std::pair current(0, col_dist(rng));
+        std::pair current(0, col_dist(local_rng));
         path[0] = current;
         visited[to_flat(current.first, current.second, n)] = true;
         buffer_vals[0] = matrix[current.first * n + current.second];
@@ -156,7 +160,7 @@ class Solver {
         bool is_even_step = false;
 
         while (current_length < buffer_size) {
-            auto next = next_move(current, is_even_step, visited.get(), pheromone);
+            auto next = next_move(current, is_even_step, visited.get(), local_rng);
             if (!next) break;
             current = *next;
             path[current_length] = current;
@@ -191,10 +195,14 @@ class Solver {
         return {std::move(path), total_cost, current_length, std::move(buffer_vals)};
     }
 
-    std::unique_ptr<SolCandidate[]> get_solutions_candidates(const int n_ants, double** pheromone) {
+    std::unique_ptr<SolCandidate[]> get_solutions_candidates(const int n_ants) {
         auto solutions = std::make_unique<SolCandidate[]>(n_ants);
-        for (int i = 0; i < n_ants; ++i) {
-            solutions[i] = construct_solution(pheromone);
+        {
+            py::gil_scoped_release release;
+            #pragma omp parallel for
+            for (int i = 0; i < n_ants; ++i) {
+                solutions[i] = construct_solution(i);
+            }
         }
         return solutions;
     }
@@ -228,10 +236,13 @@ class Solver {
         return solutions;
     }
 
-    void update_pheromones(const SolCandidate* solutions, const int num_solutions, double** pheromone) const {
-        for (int i = 0; i < matrix_size; ++i) {
-            for (int j = 0; j < matrix_size; ++j) {
-                pheromone[i][j] *= (1.0 - evaporation);
+    void update_pheromones(const SolCandidate* solutions, const int num_solutions) const {
+        {
+            py::gil_scoped_release release;
+            #pragma omp parallel for
+//            #pragma omp simd
+            for (int i = 0; i < matrix_size * matrix_size; ++i) {
+                pheromone[i] *= evap_factor;
             }
         }
 
@@ -242,7 +253,7 @@ class Solver {
             for (size_t i = 0; i < sol.length - 1; ++i) {
                 const int from = to_flat(sol.path[i].first, sol.path[i].second, n);
                 const int to = to_flat(sol.path[i + 1].first, sol.path[i + 1].second, n);
-                pheromone[from][to] += deposit;
+                pheromone[from * matrix_size + to] += deposit;
             }
         }
     }
@@ -264,19 +275,28 @@ public:
         n(n_), matrix_size(matrix_size_), max_demon_length(max_demon_length_),
         heuristic(heuristic_),
         alpha(alpha_), beta(beta_),
-        evaporation(evaporation_), q(q_) {
+        evap_factor((1.0 - evaporation_)), q(q_) {
             rng.seed(seed);
+            pheromone = std::make_unique_for_overwrite<double[]>(matrix_size * matrix_size);
+            std::ranges::fill_n(pheromone.get(), matrix_size * matrix_size, 1.0);
     }
 
-    SolCandidate run_ants(const int n_ants, const int n_iterations, double** pheromone) {
+    SolCandidate run_ants(const int n_ants, const int n_iterations) {
+        ant_rngs = std::make_unique<std::mt19937[]>(n_ants);
+        std::uniform_int_distribution<unsigned int> seed_dist(0, UINT_MAX);
+        const unsigned int base_seed = seed_dist(rng);
+        for (int i = 0; i < n_ants; ++i) {
+            ant_rngs[i].seed(base_seed + i);
+        }
+
         std::unique_ptr<SolCandidate> best_ptr;
         for (int iter = 0; iter < n_iterations; ++iter) {
-            auto solutions = get_solutions_candidates(n_ants, pheromone);
+            auto solutions = get_solutions_candidates(n_ants);
             SolCandidate current_best = update_best(best_ptr.get(), solutions.get(), n_ants);
             best_ptr = std::make_unique<SolCandidate>(std::move(current_best));
             int top_size;
             const SolCandidate* top_solutions = select_top_solutions(solutions.get(), n_ants, n_ants, &top_size);
-            update_pheromones(top_solutions, top_size, pheromone);
+            update_pheromones(top_solutions, top_size);
         }
 
         if (!best_ptr) [[unlikely]] {throw std::runtime_error("No solutions found");}
@@ -340,20 +360,13 @@ py::tuple ant_colony_fromNumpy(
                                static_cast<int*>(len_buf.ptr) + num_demons);
 
     // heuristic
+    // I could move generating it here, but numpy time already negligible for each run so whatever
     auto h_buf = heuristic.request();
     if (h_buf.size != n * n)
         throw std::runtime_error("Invalid heuristic size");
     double* h_ptr = static_cast<double*>(h_buf.ptr);
 
-    // pheromone
     const int matrix_size = n * n;
-    auto pheromone_empty = std::make_unique_for_overwrite<double[]>(matrix_size * matrix_size);
-    std::fill_n(pheromone_empty.get(), matrix_size * matrix_size, 1.0);
-    auto pheromone_rows = std::make_unique_for_overwrite<double*[]>(matrix_size);
-    for (int i = 0; i < matrix_size; ++i) {
-        pheromone_rows[i] = pheromone_empty.get() + i * matrix_size;
-    }
-    double** pheromone = pheromone_rows.get();
 
     Solver solver(
         matrix_cpp.data(),
@@ -362,7 +375,7 @@ py::tuple ant_colony_fromNumpy(
         num_demons, buffer_size, n, matrix_size, max_demon_len,
         h_ptr, alpha, beta, evaporation, q, seed);
 
-    SolCandidate best = solver.run_ants(n_ants, n_iterations, pheromone);
+    SolCandidate best = solver.run_ants(n_ants, n_iterations);
 
     // path to ndarray
     std::vector<py::ssize_t> path_shape = {

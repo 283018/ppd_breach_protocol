@@ -9,10 +9,10 @@ import pybind11
 dir_name = os.path.abspath(os.path.dirname(__file__))
 
 if sys.platform == "win32":
-    extra_compile_args = ["/std:c++20", "/openmp", "/O2"]
+    extra_compile_args = ["/std:c++20", "/openmp", "/O2", "/arch:AVX2", "/openmp:experimental"]
     extra_link_args = []
 else:
-    extra_compile_args = ["-std=c++20", "-fopenmp", "-O3"]
+    extra_compile_args = ["-std=c++20", "-fopenmp", "-O3", "-march=native", "-openmp:experimental"]
     extra_link_args = ["-fopenmp"]
 
 ext_modules = [
