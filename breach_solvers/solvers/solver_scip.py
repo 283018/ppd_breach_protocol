@@ -4,6 +4,7 @@ from core import Task, Solution, DUMMY_TASK, NoSolution
 from numpy import int8, array, zeros, dot
 from time import perf_counter
 from typing import Tuple, List, Dict
+from warnings import warn
 
 from pyscipopt import Model, quicksum, Expr
 
@@ -13,6 +14,7 @@ from pyscipopt import Model, quicksum, Expr
 # This script uses SCIP Optimizer via the 'PySCIPOpt' Python API.
 # It is intended for educational or research purposes only.
 #
+# PySCIPOpt provided under such licence:
 #
 #
 # MIT License
@@ -42,7 +44,7 @@ from pyscipopt import Model, quicksum, Expr
 
 
 def ensure_reset(method):
-    """Gurobi solver decorator, ensures model reset on solve release."""
+    """Scip solver decorator, ensures model reset on solve release."""
     def wrapper(self, *args, **kwargs):
         try:
             return method(self, *args, **kwargs)
@@ -74,7 +76,21 @@ class ScipSolver(Solver):
             print(f"\rSuccessfully initialized scip solver in {end_init - start_init:.4} sec", flush=True)
 
     @ensure_reset
-    def solve(self, task: Task, **kwargs) -> Tuple[Solution|NoSolution, float]:
+    def solve(self, task: Task, **kwargs) -> Tuple[Solution | NoSolution, float]:
+        """
+        Linear programming solver.
+
+        Uses SCIP via PySCIPOpt API.
+        Build constraints-based model to find optimal or near-optimal (if previous is not possible) solutions.
+
+        Possible keyword arguments:
+            - output_flag:bool=False - if True allow solver to output full optimization information in console.
+            - strict_opt:bool=False - if True enforce strictly optimal solution return, will raise OptimizationError if model build failed or solution status is not optimal.
+
+        :param task:
+        :param kwargs:
+        :return: found Solution or NoSolution, main execution time (without pre-calculation but including model build time)
+        """
         self._validate_kwargs(kwargs)
         output_flag = kwargs.get('output_flag', False)
         strict_opt = kwargs.get('strict_opt', False)
@@ -115,7 +131,7 @@ class ScipSolver(Solver):
             if strict_opt:
                 raise OptimizationError("Gurobi solution status is not optimal:\n    {}".format('optimal'))
             else:
-                print(f"Solution status is not optimal: model.status={status}")
+                warn(f"Solution status is not optimal: model.status={status}")
 
         x_path = array(
             [
@@ -127,6 +143,7 @@ class ScipSolver(Solver):
             ],
             dtype=int8,
         )
+
         buffer_nums = array([int(self.model.getVal(buffer_seq[t])) for t in range(buffer_size)])
 
         y_active = zeros(d_amo, dtype=bool)
@@ -203,7 +220,7 @@ class ScipSolver(Solver):
         for i in range(1, n):
             self.model.addCons(
                 quicksum(x[i, j, 0] for j in range(n)) == 0,
-                name=f"start_row_{i}",
+                name=f"start_in_first_row_{i}",
             )
 
         # movement rules
@@ -213,12 +230,12 @@ class ScipSolver(Solver):
                     if t % 2 == 1:  # column
                         prev_col = quicksum(x[k, j, t - 1] for k in range(n))
                         self.model.addCons(
-                            x[i, j, t] <= prev_col, name=f"move_col_{i}_{j}_{t}"
+                            x[i, j, t] <= prev_col, name=f"move_rule_col_{i}_{j}_step_{t}"
                         )
                     else:  # row
                         prev_row = quicksum(x[i, k, t - 1] for k in range(n))
                         self.model.addCons(
-                            x[i, j, t] <= prev_row, name=f"move_row_{i}_{j}_{t}"
+                            x[i, j, t] <= prev_row, name=f"move_rule_row_{i}_{j}_step_{t}"
                         )
 
         # buffer sequence
@@ -243,7 +260,7 @@ class ScipSolver(Solver):
 
         # constraints for demons
         # had to switch to big-M constrains, since indicator works differently
-        big_m = 100
+        big_m = 101
         for i in range(d_amo):
             curr_len = d_lengths[i]
             valid_p = buffer_size - curr_len + 1
@@ -297,25 +314,6 @@ class ScipSolver(Solver):
             else:
                 return str(e)
         return None
-
-
-
-
-
-
-if __name__ == "__main__":
-    sv = ScipSolver()
-    pass
-
-
-
-
-
-
-
-
-
-
 
 
 
