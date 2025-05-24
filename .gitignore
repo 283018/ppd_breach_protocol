@@ -14,6 +14,8 @@ __pycache__/
 _test_*
 _t_*
 
+*.csv
+
 
 /*.py
 !/main.py
