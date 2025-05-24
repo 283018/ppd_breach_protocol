@@ -3,5 +3,6 @@
 from .solver_brute import BruteSolver
 from .solver_gurobi import GurobiSolver
 from .solver_ac import AntColSolver
+from .solver_scip import ScipSolver
 
-__all__ = ['BruteSolver', 'GurobiSolver', 'AntColSolver']
+__all__ = ['BruteSolver', 'GurobiSolver', 'AntColSolver', 'ScipSolver']

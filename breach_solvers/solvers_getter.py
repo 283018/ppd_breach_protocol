@@ -1,6 +1,6 @@
 from typing import overload, Literal
 
-from .solvers import BruteSolver, GurobiSolver, AntColSolver
+from .solvers import BruteSolver, GurobiSolver, AntColSolver, ScipSolver
 from .solvers_abc import Solver, solver_registry
 
 
@@ -14,6 +14,10 @@ def get_solver(name: Literal['brute']) -> BruteSolver:
 
 @overload
 def get_solver(name: Literal['ant_col']) -> AntColSolver:
+    ...
+
+@overload
+def get_solver(name: Literal['scip']) -> ScipSolver:
     ...
 
 
