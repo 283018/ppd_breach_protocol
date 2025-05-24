@@ -240,7 +240,6 @@ class Solver {
         {
             py::gil_scoped_release release;
             #pragma omp parallel for
-//            #pragma omp simd
             for (int i = 0; i < matrix_size * matrix_size; ++i) {
                 pheromone[i] *= evap_factor;
             }
