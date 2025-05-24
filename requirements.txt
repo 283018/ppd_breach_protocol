@@ -2,6 +2,8 @@
 
 numpy~=2.2.5
 numba~=0.61.2
+multipledispatch~=1.0.0
 
 # see README.md for licence clarification
 gurobipy~=12.0.1
+PySCIPOpt~=5.5.0
