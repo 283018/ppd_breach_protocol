@@ -11,6 +11,8 @@ __pycache__/
 
 
 **/_test.py
+_test_*
+_t_*
 
 
 /*.py
