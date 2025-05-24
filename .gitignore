@@ -15,7 +15,7 @@ _test_*
 _t_*
 
 *.csv
-
+/tuning/*.png
 
 /*.py
 !/main.py
