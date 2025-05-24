@@ -4,6 +4,7 @@ from core import Task, Solution, DUMMY_TASK, NoSolution
 from numpy import int8, array, zeros, dot
 from time import perf_counter
 from typing import Tuple, List
+from warnings import warn
 
 from gurobipy import GRB, quicksum, Model ,Var, LinExpr, tupledict
 # noinspection PyProtectedMember
@@ -34,6 +35,7 @@ def ensure_reset(method):
     return wrapper
 
 
+# noinspection DuplicatedCode
 @register_solver('gurobi')
 class GurobiSolver(Solver):
     _allowed_kwargs = {'output_flag': bool, 'strict_opt': bool}
@@ -117,7 +119,7 @@ class GurobiSolver(Solver):
             if strict_opt:
                 raise OptimizationError("Gurobi solution status is not optimal:\n    {}".format(GRB.OPTIMAL))
             else:
-                print(f"Solution status is not optimal: model.status={self.model.status}")
+                warn(f"Solution status is not optimal: model.status={self.model.status}")
 
         x_path = array([(i, j) for t in range(buffer_size) for i in range(n) for j in range(n) if x[i, j, t].X > 0.5], dtype=int8)
         buffer_nums = array([int(buffer_seq[t].getValue()) for t in range(buffer_size)])
