@@ -42,6 +42,11 @@ def get_solver(name: str) -> Solver:
             if True allow solver to output full optimization information in console.
         - strict_opt:bool=False
             if True enforce strictly optimal solution return, will raise OptimizationError if model build failed or solution status is not optimal.
+    scip:
+        - output_flag:bool=False
+            if True allow solver to output full optimization information in console.
+        - strict_opt:bool=False
+            if True enforce strictly optimal solution return, will raise OptimizationError if model build failed or solution status is not optimal.
     brute:
         - to_prune:bool=True
             if True allow B&B pruning, and best-score loop cut, essentially heuristic, that allows for non-optimal solutions (optimal solution is one, that uses the least buffer across all maximum-scored solutions).
