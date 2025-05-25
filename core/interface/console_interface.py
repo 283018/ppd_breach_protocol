@@ -1,12 +1,9 @@
-from numba.core.ir import Print
-
 from core.datastructures import Task, Solution, NoSolution
 from .breach_translator import map_breach
 
 from numpy import ndarray
 from multipledispatch import dispatch
 
-from typing import List, Tuple
 from collections.abc import Sequence
 
 
@@ -210,9 +207,9 @@ def bprint(tasks:Sequence[Task], solutions:Sequence[Solution|NoSolution], times:
     Multiple dispatched function for printing Tasks and Solution in console.
 
     Note:
-        Due to limitations of multipledispatch does not support keyword arguments.
-
-        Sequence[] typehint used only for simplicity, dispatcher accept only List or Tuple (or their inheritances) with mentioned structs.
+        - Due to limitations of multipledispatch does not support keyword arguments.
+        - Sequence[] typehint used only for simplicity, dispatcher accept only List or Tuple (or their inheritances) with mentioned structs.
+        - In all combinations translate - optional argument
 
 
     Accept different combinations of arguments:
@@ -276,7 +273,7 @@ def _full_print(task, solution, translate):
         total_points = solution.total_points
 
         # counting
-        demons_costs_sum = sum(demons_costs)
+        demons_costs_sum = sum(int(d) for d in demons_costs)
         used_buffer = sum(1 if int(i) != 0 else 0 for i in buffer_sequence)
         demons_amo = len(demons)
         demons_active_amo = active_demons.sum()
@@ -288,7 +285,7 @@ def _full_print(task, solution, translate):
         active_demons = [False] * demons_amo
         total_points = 0
 
-        demons_costs_sum = sum(demons_costs)
+        demons_costs_sum = sum(int(d) for d in demons_costs)
         used_buffer = 0
         demons_active_amo = 0
 
