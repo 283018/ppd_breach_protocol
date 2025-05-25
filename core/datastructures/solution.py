@@ -1,10 +1,11 @@
 from dataclasses import dataclass
 from numpy import ndarray, integer, int8, zeros
 from numpy.lib.stride_tricks import sliding_window_view
-from typing import Optional
+from typing import Optional, Self
+from warnings import warn
 
 
-@dataclass
+@dataclass(slots=True)
 class Solution:
     """
     Represents breach protocol solution, only non-optional parameter is path, rest may be reconstructed with .fill_solution()
@@ -33,7 +34,7 @@ class Solution:
         if not isinstance(path, ndarray):
             raise ValueError("path must be ndarray")
         if path.size == 0:
-            pass    # TODO: logs & warnings (or maybe counting)
+            raise TypeError("Solution must have path, for no-path cases use NoSolution instead")
         else:
             if path.ndim != 2 or path.shape[1] != 2:
                 raise ValueError("non-empty path must be 2d array with shape (n, 2)")
@@ -47,7 +48,7 @@ class Solution:
             if not isinstance(total_points, (int|integer)):
                 raise ValueError("total_points must be integer")
 
-    def fill_solution(self, from_task):
+    def fill_solution(self, from_task) -> Self:
         """
         Fills all optional parameters based on self.path and given Task instance.
         Does not validate path.
@@ -87,8 +88,22 @@ class Solution:
 
         return self
 
+    def copy(self) -> Self:
+        return Solution(
+            path = self.path.copy(),
+            buffer_sequence = self.buffer_sequence.copy() if self.buffer_sequence is not None else None,
+            active_demons = self.active_demons.copy() if self.active_demons is not None else None,
+            total_points = self.total_points if self.total_points is not None else None,
+        )
 
-@dataclass
+    def __copy__(self, memo: dict) -> Self:
+        return self.copy()
+
+    def __deepcopy__(self, memo: dict) -> Self:
+        return self.copy()
+
+
+@dataclass(slots=True)
 class NoSolution(Solution):
     """
     Represents errored/impossible Solutions
@@ -100,10 +115,10 @@ class NoSolution(Solution):
         if self.path is not None:
             raise ValueError("In NoSolution, 'path' must always be None")
         if any(val is not None for val in (self.total_points, self.active_demons, self.buffer_sequence)):
-            raise ValueError("NoSolution cant contain any of {buffer_sequence, active_demons, total_points}")
+            raise ValueError("NoSolution can not contain any of {buffer_sequence, active_demons, total_points}")
 
-    def fill_solution(self, from_task=None):
-        print("Unable to fill NoSolution")
+    def fill_solution(self, from_task=None) -> Self :
+        warn("Unable to fill NoSolution")
         return self
 
 

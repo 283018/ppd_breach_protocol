@@ -1,11 +1,11 @@
 from dataclasses import dataclass
-from typing import Tuple
+from typing import Tuple, Self
 from numpy import ndarray, integer, issubdtype, array
 
 
 
 
-@dataclass
+@dataclass(slots=True)
 class Task:
     """
     Represents single task for breach protocol minigame.
@@ -22,7 +22,6 @@ class Task:
 
     def __post_init__(self):
         self._validate_inputs()
-
 
     def _validate_inputs(self):
         matrix = self.matrix
@@ -43,13 +42,24 @@ class Task:
                 raise ValueError("Each demon must be a 1D numpy array")
 
 
-    def copy(self):
-        return Task(matrix=self.matrix, buffer_size=self.buffer_size, demons=self.demons, demons_costs=self.demons_costs)
+    def copy(self) -> Self:
+        return Task(
+            matrix=self.matrix.copy(),
+            demons=tuple(d.copy() for d in self.demons),
+            demons_costs=self.demons_costs.copy(),
+            buffer_size=self.buffer_size
+        )
+
+    def __copy__(self, memo: dict) -> Self:
+        return self.copy()
+
+    def __deepcopy__(self, memo: dict) -> Self:
+        return self.copy()
 
 
-DUMMY_TASK = Task(
+DUMMY_TASK:Task = Task(
     matrix=array([[1, 2], [3, 4]], dtype='int8'),
     demons=(array([1, 3], dtype='int8'),),
     demons_costs=array([1], dtype='int8'),
-    buffer_size=1
+    buffer_size=2
 )
