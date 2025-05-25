@@ -1,4 +1,4 @@
-from typing import Callable, Any, Tuple, Dict, Type, List, Iterable
+from typing import Callable, Any, Tuple, Dict, Type, List, Iterable, Self
 from numpy import ndarray, array
 from abc import ABC, ABCMeta, abstractmethod
 from core import Task, Solution, NoSolution
@@ -113,6 +113,6 @@ class SeedableSolver(Solver, ABC):
     Abstract base class for solvers that require random number generation.
     """
     @abstractmethod
-    def seed(self, value: int) -> None:
+    def seed(self, value: int) -> Self:
         """Set the random number generator seed."""
         ...
