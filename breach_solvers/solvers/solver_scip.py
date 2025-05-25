@@ -144,10 +144,6 @@ class ScipSolver(Solver):
             dtype=int8,
         )
         
-        from icecream import ic
-        ic(buffer_size)
-        ic([self.model.getVal(buffer_seq[t]) for t in range(buffer_size)])
-        
         buffer_nums = array([round(self.model.getVal(buffer_seq[t])) for t in range(buffer_size)])
 
         y_active = zeros(d_amo, dtype=bool)
