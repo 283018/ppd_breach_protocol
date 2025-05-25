@@ -1,7 +1,12 @@
 from typing import Callable, Any, Tuple, Dict, Type, List, Iterable
+from numpy import ndarray, array
 from abc import ABC, ABCMeta, abstractmethod
 from core import Task, Solution, NoSolution
 
+
+SAFE_TYPES = {int, float, str, bool}
+SEQUENCE_TYPES = {list, tuple, set, ndarray}
+CONSTR_MAP = {list: list, tuple: tuple, set:set, ndarray: array}
 
 
 solver_registry:Dict[str, Callable] = {}
@@ -24,6 +29,7 @@ class Solver(ABC, metaclass=ABCMeta):
     """
     Solver abstract base class
     """
+    #! WARNING: only build-in python allowed to be specified as kwarg type
     _allowed_kwargs: Dict[str, Type] = {}
 
     def __init__(self):
@@ -72,14 +78,33 @@ class Solver(ABC, metaclass=ABCMeta):
         allowed_kwargs = self.__class__._allowed_kwargs
         if kwargs and not allowed_kwargs:
             raise TypeError(f"{self.__class__.__name__} does not support any keyword arguments. Received: {list(kwargs.keys())}")
-        for key, value in kwargs.items():
-            if key not in allowed_kwargs:
-                raise TypeError(f"Unexpected keyword argument: '{key}'")
-            expected_type = allowed_kwargs[key]
-            if not isinstance(value, expected_type):
-                raise TypeError(
-                    f"Argument '{key}' must be of type {expected_type.__name__}, got {type(value).__name__}"
-                )
+        for name, value in kwargs.items():
+            if name not in allowed_kwargs:
+                raise TypeError(f"Unexpected keyword argument: '{name}'")
+
+            expected_type = allowed_kwargs[name]
+            if expected_type == float and isinstance(value, int):
+                kwargs[name] = float(value)
+                continue
+            if expected_type == int and isinstance(value, float):
+                kwargs[name] = int(value)
+                continue
+            if expected_type in SAFE_TYPES:
+                try:
+                    kwargs[name] = expected_type(value)
+                    continue
+                except (ValueError, TypeError):
+                    pass
+            if expected_type in SEQUENCE_TYPES and type(value) in SEQUENCE_TYPES:
+                try:
+                    # noinspection PyTypeChecker
+                    kwargs[name] = CONSTR_MAP[expected_type](value)
+                    continue
+                except TypeError as e:
+                    raise TypeError(f"Argument '{name}' cannot be converted to {expected_type.__name__}: {e}") from e
+
+            raise TypeError(f"Argument '{name}' must be {expected_type.__name__} or convertable to it. "
+                            f"Got {type(value).__name__} with value: {repr(value)}")
 
 
 
