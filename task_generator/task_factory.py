@@ -4,7 +4,7 @@ from numpy.random import Generator, SeedSequence, default_rng, PCG64
 from .breach_generator import BPGen, CallableGenerator
 from core import Task
 
-from typing import List
+from typing import List, Self
 
 
 TASK_MODES = set(range(-3, 5))
@@ -35,8 +35,8 @@ class TaskFactory:
     def __init__(self, seed: int|integer=None):
         self.reseed(seed)
 
-    def reseed(self, seed: int|integer=None):
-        """Allow to reset state of all internal rngs"""
+    def reseed(self, seed: int|integer=None) -> Self:
+        """Allow to reset state of all internal rngs, support chaining"""
         self._rng = default_rng(seed)
 
         main_ss_seed = self._rng.integers(0, 2 ** 32)
