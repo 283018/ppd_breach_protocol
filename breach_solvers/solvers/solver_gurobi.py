@@ -92,8 +92,9 @@ class GurobiSolver(Solver):
         n = matrix.shape[0]
         d_amo = len(demons)
         d_lengths = array([d.size for d in demons])
-        max_points = costs.sum()
-        unused_cell_reward = 0.1 * (max_points / d_amo)
+        # max_points = costs.sum()
+        rewards_per_symbol = d_lengths / costs
+        unused_cell_reward = 0.1 * rewards_per_symbol.min()
 
         self.model.setParam('OutputFlag', output_flag)
 
@@ -122,10 +123,10 @@ class GurobiSolver(Solver):
                 warn(f"Solution status is not optimal: model.status={self.model.status}")
 
         x_path = array([(i, j) for t in range(buffer_size) for i in range(n) for j in range(n) if x[i, j, t].X > 0.5], dtype=int8)
-        buffer_nums = array([int(buffer_seq[t].getValue()) for t in range(buffer_size)])
+        buffer_nums = array([round(buffer_seq[t].getValue()) for t in range(buffer_size)])
         y_active = zeros(d_amo, dtype=bool)
         for i, var in y.items():
-            y_active[i] = bool(int(var.X))
+            y_active[i] = bool(round(var.X))
         y_total_points = dot(costs, y_active)
 
         if output_flag:

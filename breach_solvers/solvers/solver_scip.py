@@ -9,7 +9,6 @@ from warnings import warn
 from pyscipopt import Model, quicksum, Expr
 
 
-
 # ================================================================
 # This script uses SCIP Optimizer via the 'PySCIPOpt' Python API.
 # It is intended for educational or research purposes only.
@@ -42,27 +41,28 @@ from pyscipopt import Model, quicksum, Expr
 # ================================================================
 
 
-
 def ensure_reset(method):
     """Scip solver decorator, ensures model reset on solve release."""
+
     def wrapper(self, *args, **kwargs):
         try:
             return method(self, *args, **kwargs)
         finally:
             self.model.resetParams()
-            self.model = Model('BreachProtocol')
+            self.model = Model("BreachProtocol")
+
     return wrapper
 
 
 # noinspection DuplicatedCode
-@register_solver('scip')
+@register_solver("scip")
 class ScipSolver(Solver):
-    _allowed_kwargs = {'output_flag': bool, 'strict_opt': bool}
+    _allowed_kwargs = {"output_flag": bool, "strict_opt": bool}
 
     model: Model
 
     def _warm_up(self):
-        self.model = Model('BreachProtocol')
+        self.model = Model("BreachProtocol")
 
         self.model.hideOutput(True)
 
@@ -103,8 +103,9 @@ class ScipSolver(Solver):
         n = matrix.shape[0]
         d_amo = len(demons)
         d_lengths = array([d.size for d in demons])
-        max_points = costs.sum()
-        unused_cell_reward = 0.1 * (max_points / d_amo)
+        # max_points = costs.sum()
+        rewards_per_symbol = d_lengths / costs
+        unused_cell_reward = 0.1 * rewards_per_symbol.min()
 
         self.model.hideOutput(not output_flag)
 
@@ -129,7 +130,7 @@ class ScipSolver(Solver):
         status = self.model.getStatus()
         if status != 'optimal':
             if strict_opt:
-                raise OptimizationError("Gurobi solution status is not optimal:\n    {}".format('optimal'))
+                raise OptimizationError("Gurobi solution status is not optimal:\n    {}".format(status))
             else:
                 warn(f"Solution status is not optimal: model.status={status}")
 
@@ -143,19 +144,18 @@ class ScipSolver(Solver):
             ],
             dtype=int8,
         )
-        
+
         buffer_nums = array([round(self.model.getVal(buffer_seq[t])) for t in range(buffer_size)])
 
         y_active = zeros(d_amo, dtype=bool)
         for i, var in enumerate(y):
-            y_active[i] = bool(int(self.model.getVal(y[i])))
+            y_active[i] = bool(round(self.model.getVal(y[i])))
         y_total_points = dot(costs, y_active)
 
         if output_flag:
             print(f"\nBuild time: {time_mid - time_start:.6} sec \nOptimization time: {time_end - time_mid:.6} sec")
 
         return Solution(x_path, buffer_nums, y_active, y_total_points), time_end - time_start
-
 
     def _build_model(
         self,
@@ -182,21 +182,13 @@ class ScipSolver(Solver):
         # one cell per step
         for t in range(buffer_size):
             self.model.addCons(
-                quicksum(
-                    x[i, j, t] for i in range(n) for j in range(n)
-                )
-                <= 1,
-                name=f"one_cell_per_step_{t}",
-            )
+                quicksum(x[i, j, t] for i in range(n) for j in range(n)) <= 1,
+                name=f"one_cell_per_step_{t}")
 
         # continuous path
         for t in range(1, buffer_size):
-            prev_sum = quicksum(
-                x[i, j, t - 1] for i in range(n) for j in range(n)
-            )
-            curr_sum = quicksum(
-                x[i, j, t] for i in range(n) for j in range(n)
-            )
+            prev_sum = quicksum(x[i, j, t - 1] for i in range(n) for j in range(n))
+            curr_sum = quicksum(x[i, j, t] for i in range(n) for j in range(n))
             self.model.addCons(curr_sum <= prev_sum, name=f"continuous_path_{t}")
 
         # cell used at max one time
@@ -208,12 +200,7 @@ class ScipSolver(Solver):
                 )
 
         # Cax steps (probably redundant)
-        used_buffer = quicksum(
-            x[i, j, t]
-            for i in range(n)
-            for j in range(n)
-            for t in range(buffer_size)
-        )
+        used_buffer = quicksum(x[i, j, t] for i in range(n) for j in range(n) for t in range(buffer_size))
         self.model.addCons(used_buffer <= buffer_size, name="max_steps")
 
         # start in first row
@@ -229,22 +216,14 @@ class ScipSolver(Solver):
                 for j in range(n):
                     if t % 2 == 1:  # column
                         prev_col = quicksum(x[k, j, t - 1] for k in range(n))
-                        self.model.addCons(
-                            x[i, j, t] <= prev_col, name=f"move_rule_col_{i}_{j}_step_{t}"
-                        )
+                        self.model.addCons(x[i, j, t] <= prev_col, name=f"move_rule_col_{i}_{j}_step_{t}",)
                     else:  # row
                         prev_row = quicksum(x[i, k, t - 1] for k in range(n))
-                        self.model.addCons(
-                            x[i, j, t] <= prev_row, name=f"move_rule_row_{i}_{j}_step_{t}"
-                        )
+                        self.model.addCons(x[i, j, t] <= prev_row, name=f"move_rule_row_{i}_{j}_step_{t}",)
 
         # buffer sequence
         buffer_seq = [
-            quicksum(
-                matrix[i][j] * x[i, j, t]
-                for i in range(n)
-                for j in range(n)
-            )
+            quicksum(matrix[i][j] * x[i, j, t] for i in range(n) for j in range(n))
             for t in range(buffer_size)
         ]
 
@@ -268,14 +247,10 @@ class ScipSolver(Solver):
                 for s in range(curr_len):
                     t = p + s
                     # z[i][p] == 1 --> buffer_seq[t] == demons[i][s]
-                    self.model.addCons(
-                        buffer_seq[t] >= demons[i][s] - big_m * (1 - z[i][p]),
-                        name=f"indicator_lb_{i}_{p}_{s}",
-                    )
-                    self.model.addCons(
-                        buffer_seq[t] <= demons[i][s] + big_m * (1 - z[i][p]),
-                        name=f"indicator_ub_{i}_{p}_{s}",
-                    )
+                    self.model.addCons(buffer_seq[t] >= demons[i][s] - big_m * (1 - z[i][p]),
+                                       name=f"indicator_lb_{i}_{p}_{s}")
+                    self.model.addCons(buffer_seq[t] <= demons[i][s] + big_m * (1 - z[i][p]),
+                                       name=f"indicator_ub_{i}_{p}_{s}")
 
         # demon activation
         y = [self.model.addVar(vtype="B", name=f"y_{i}") for i in range(d_amo)]
@@ -292,13 +267,14 @@ class ScipSolver(Solver):
                 self.model.addCons(y[i] == 0, name=f"y_false_{i}")
 
         # objective
-        objective = quicksum(costs[i] * y[i] for i in range(d_amo)) + unused_cell_reward * (buffer_size - used_buffer)
-        self.model.setObjective(objective, sense='maximize')
+        objective = quicksum(
+            costs[i] * y[i] for i in range(d_amo)
+        ) + unused_cell_reward * (buffer_size - used_buffer)
+        self.model.setObjective(objective, sense="maximize")
 
         return x, y, buffer_seq
 
-
-    def _optimize(self, strict_opt) -> str|None:
+    def _optimize(self, strict_opt) -> str | None:
         """
         Run optimization.
         :param strict_opt: if True raise error on optimization failure, otherwise return error log on failure.
