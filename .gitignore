@@ -21,3 +21,4 @@ _t_*
 !/main.py
 
 /cpp/build/
+/.vscode/
