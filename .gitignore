@@ -24,4 +24,4 @@ _t_*
 /.vscode/
 /cpp/pybind11/
 /cpp/cmake-build-debug/
-/tuning/
+/tuning/*
