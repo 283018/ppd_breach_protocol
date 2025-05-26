@@ -25,3 +25,4 @@ _t_*
 /cpp/pybind11/
 /cpp/cmake-build-debug/
 /tuning/*
+/tunung/
