@@ -9,8 +9,6 @@ from .interface import map_breach, aligned_print, mat_print, bprint
 
 
 __all__ = []
-__all__ += base_setup.__all__
-__all__ += solution_verifier.__all__
 __all__ += datastructures.__all__
-__all__ += interface.__all__
+__all__ += ['bprint', 'mat_print']
 
