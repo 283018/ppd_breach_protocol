@@ -5,7 +5,13 @@ from core.datastructures import Task, Solution
 __all__ = ['validate_solution', 'verify_solution']
 
 
-# TODO: normal logger ig or warns
+# ########################################################################## #
+#                                                                            #
+#   whole this module is deprecated, all validation now done in Solution     #
+#                                                                            #
+# ########################################################################## #
+
+
 def validate_solution(matrix, path):
     """
     Validates path on being valid according to movement rules
@@ -54,8 +60,6 @@ def validate_solution(matrix, path):
     return True
 
 
-#? TODO: rethink this part
-# TODO: demons_costs, total_points, adjust to optionals in task & solution
 def verify_solution(task:Task, solution:Solution):
 
     matrix = task.matrix
