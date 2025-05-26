@@ -1,28 +1,29 @@
-# venv
+# env folders
 .venv/
 .env
-
-# idea
 .idea/
+/.vscode/
 
-# all cash
+
+# cash
 __pycache__/
 .pyc
 
+!/main.py
+/*.py
 
+# tests
 **/_test.py
 _test_*
 _t_*
-
 *.csv
-/tuning/*.png
 
-/*.py
-!/main.py
+# tuning
+/tunung/
+/tuning/*
 
+
+# c specific module
 /cpp/build/
-/.vscode/
 /cpp/pybind11/
 /cpp/cmake-build-debug/
-/tuning/*
-/tunung/
