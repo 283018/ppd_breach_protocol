@@ -1,7 +1,7 @@
 from numpy import ndarray, int8, zeros, integer
 from numpy.random import Generator, SeedSequence, default_rng, PCG64
 
-from .breach_generator import BPGen
+from .breach_generator import BPGen, CallableGenerator
 from core import Task
 
 from typing import List
@@ -20,26 +20,34 @@ class TaskFactory:
         - -2: varying complication of tasks (medium).
         - -1: varying complication of tasks (hard).
         -  0 : default, high deviation for varying complication of tasks.
-        -  1 : setted size and lengths, similar to base game bp (easy).
-        -  2 : setted size and lengths (medium).
-        -  3 : setted size and lengths (hard).
-        -  4 : setted size and lengths (very hard).
+        -  1 : set size and lengths, similar to base game bp (easy).
+        -  2 : set size and lengths (medium).
+        -  3 : set size and lengths (hard).
+        -  4 : set size and lengths (very hard).
 
     :param seed: optional, seed for main rng, rest derived from it.
     """
+    _rng: Generator
+    _mat_gen: CallableGenerator
+    _demons_gen: CallableGenerator
+    _costs_gen: CallableGenerator
 
     def __init__(self, seed: int|integer=None):
-        self.rng = default_rng(seed)
+        self.reseed(seed)
 
-        main_ss_seed = self.rng.integers(0, 2**32)
+    def reseed(self, seed: int|integer=None):
+        """Allow to reset state of all internal rngs"""
+        self._rng = default_rng(seed)
+
+        main_ss_seed = self._rng.integers(0, 2 ** 32)
         main_ss = SeedSequence(main_ss_seed)
         child_gens_seeds = main_ss.spawn(3)
         child_gens = [Generator(PCG64(seed)) for seed in child_gens_seeds]
 
         # pain...
-        self.mat_gen = BPGen.create('matrix', child_gens[0])
-        self.demons_gen = BPGen.create('demons', child_gens[1])
-        self.costs_gen = BPGen.create('demons_costs', child_gens[2])
+        self._mat_gen = BPGen.create('matrix', child_gens[0])
+        self._demons_gen = BPGen.create('demons', child_gens[1])
+        self._costs_gen = BPGen.create('demons_costs', child_gens[2])
 
     def __call__(self, mode: int = 0) -> Task:
         return self.gen(mode)
@@ -55,10 +63,10 @@ class TaskFactory:
             - -2: varying complication of tasks (medium).
             - -1: varying complication of tasks (hard).
             -  0 : default, high deviation for varying complication of tasks.
-            -  1 : setted size and lengths, similar to base game bp (easy).
-            -  2 : setted size and lengths (medium).
-            -  3 : setted size and lengths (hard).
-            -  4 : setted size and lengths (very hard).
+            -  1 : set size and lengths, similar to base game bp (easy).
+            -  2 : set size and lengths (medium).
+            -  3 : set size and lengths (hard).
+            -  4 : set size and lengths (very hard).
 
         :param mode: generation mode
         :param amount: optional: amount of task to generate
@@ -121,46 +129,46 @@ class TaskFactory:
             num_selected = 0
 
             if mode == -3:
-                size = self.rng.integers(4, 7)  # 4-6 inclusive
+                size = self._rng.integers(4, 7)  # 4-6 inclusive
                 available_lengths = list(range(2, 4))  # lengths 2-3
-                num_selected = self.rng.integers(1, 3)  # 1-2 lengths
+                num_selected = self._rng.integers(1, 3)  # 1-2 lengths
             elif mode == -2:
-                size = self.rng.integers(6, 9)  # 6-8 inclusive
+                size = self._rng.integers(6, 9)  # 6-8 inclusive
                 available_lengths = list(range(3, 6))  # lengths 3-5
-                num_selected = self.rng.integers(2, 4)  # 2-3 lengths
+                num_selected = self._rng.integers(2, 4)  # 2-3 lengths
             elif mode == -1:
-                size = self.rng.integers(8, 11)  # 8-10 inclusive
+                size = self._rng.integers(8, 11)  # 8-10 inclusive
                 available_lengths = list(range(5, min(9, int(size)) + 1))  # lengths 5+
-                num_selected = self.rng.integers(3, 5)  # 3-4 lengths
+                num_selected = self._rng.integers(3, 5)  # 3-4 lengths
             elif mode == 0:
-                size = self.rng.integers(4, 11)  # 4-10 inclusive
+                size = self._rng.integers(4, 11)  # 4-10 inclusive
                 available_lengths = list(range(2, min(9, int(size)) + 1))
                 num_selected = size // 2
                 if size > 6:
-                    mat_mode = self.rng.choice((0, 0, 1, 1, 1))
+                    mat_mode = self._rng.choice((0, 0, 1, 1, 1))
                 if size > 8:
-                    mat_mode = self.rng.choice((0, 0, 1, 1, 1, 2))
+                    mat_mode = self._rng.choice((0, 0, 1, 1, 1, 2))
                 else:
                     mat_mode = 0
 
             # demons specs
             demon_specs = zeros(10, dtype=int8)
-            selected_lengths = self.rng.choice(available_lengths,
-                                               size=min(num_selected, len(available_lengths)),
-                                               replace=False)
+            selected_lengths = self._rng.choice(available_lengths,
+                                                size=min(num_selected, len(available_lengths)),
+                                                replace=False)
 
             for length in selected_lengths:
                 max_demons = max(1, size // length)
                 num_demons = 0
                 if mode == -3:
-                    num_demons = self.rng.integers(1, min(3, max_demons) + 1)
+                    num_demons = self._rng.integers(1, min(3, max_demons) + 1)
                 elif mode == -2:
-                    num_demons = self.rng.integers(2, min(4, max_demons) + 2)
+                    num_demons = self._rng.integers(2, min(4, max_demons) + 2)
                 elif mode == -1:
                     min_demons = min(3, max_demons)
-                    num_demons = self.rng.integers(min_demons, max_demons + 1)
+                    num_demons = self._rng.integers(min_demons, max_demons + 1)
                 elif mode == 0:
-                    num_demons = self.rng.integers(1, max_demons + 1)
+                    num_demons = self._rng.integers(1, max_demons + 1)
                 demon_specs[length] = num_demons
 
             active_lengths = [l for l in range(2, 10) if demon_specs[l] > 0]
@@ -173,7 +181,7 @@ class TaskFactory:
             elif mode == -1:
                 buffer_length = max_demon_length
             elif mode == 0:
-                buffer_length = max_demon_length + self.rng.integers(0, 3)  # noqa (numpy int vs python int)
+                buffer_length = max_demon_length + self._rng.integers(0, 3)  # noqa (numpy int vs python int)
 
         # Generate game data
         # matrix = self.mat_gen(size, mat_mode)
@@ -183,9 +191,9 @@ class TaskFactory:
 
         tasks = [
             Task(
-                matrix := self.mat_gen(size, mat_mode),
-                demons := self.demons_gen(matrix, demon_specs),
-                self.costs_gen(demons),
+                matrix := self._mat_gen(size, mat_mode),
+                demons := self._demons_gen(matrix, demon_specs),
+                self._costs_gen(demons),
                 buffer_length,
             ) for _ in range(amount)
         ]
@@ -220,9 +228,9 @@ class TaskFactory:
             raise ValueError("amount must be positive integer")
         tasks = [
             Task(
-                matrix := self.mat_gen(matrix_size, matrix_mode),
-                demons := self.demons_gen(matrix, demons_specs),
-                self.costs_gen(demons),
+                matrix := self._mat_gen(matrix_size, matrix_mode),
+                demons := self._demons_gen(matrix, demons_specs),
+                self._costs_gen(demons),
                 buffer_size,
             ) for _ in range(amount)
         ]
