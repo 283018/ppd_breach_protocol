@@ -22,3 +22,5 @@ _t_*
 
 /cpp/build/
 /.vscode/
+/cpp/pybind11/
+/cpp/cmake-build-debug/
