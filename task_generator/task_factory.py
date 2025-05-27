@@ -4,8 +4,7 @@ from numpy.random import Generator, SeedSequence, default_rng, PCG64
 from .breach_generator import BPGen, CallableGenerator
 from core import Task
 
-from typing import List, Self
-
+from typing import List, Self, overload, Literal
 
 TASK_MODES = set(range(-3, 5))
 
@@ -226,6 +225,11 @@ class TaskFactory:
         else:
             return tasks
 
+    @overload
+    def gen_manual(self, matrix_size:int, demons_specs:dict|ndarray, buffer_size:int, matrix_mode:int=0, amount:Literal[1]=1) -> Task: ...
+
+    @overload
+    def gen_manual(self, matrix_size:int, demons_specs:dict|ndarray, buffer_size:int, matrix_mode:int=0, amount:int=1) -> List[Task]: ...
 
     def gen_manual(self, matrix_size:int, demons_specs:dict|ndarray, buffer_size:int, matrix_mode:int=0, amount:int=1) -> Task|List[Task]:
         """
