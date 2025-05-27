@@ -100,7 +100,7 @@ class ScipSolver(Solver):
 
         :param task: ``Task`` instance.
         :param kwargs:
-        :return: ``tuple``: (found ``Solution`` or ``NoSolution``, main execution time)
+        :return: ``tuple``: (found ``Solution`` or ``NoSolution``, ``execution_time``)
             excluding pre- and post- calculations.
         """
         self._validate_kwargs(kwargs)
