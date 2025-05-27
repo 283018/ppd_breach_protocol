@@ -1,5 +1,6 @@
 # /common/__init__.py
-# empty module for grouping imports
+# lazy empty module for grouping imports
+# use for wild-card import
 
 from core import *
 from breach_solvers import *

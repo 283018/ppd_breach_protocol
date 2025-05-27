@@ -28,6 +28,7 @@ class BruteSolver(Solver):
             print(f"\rSuccessfully initialized brute-force solver in {end_init - start_init:.4} sec", flush=True)
 
 
+    #! TODO: add arg for NoSolution return
     def solve(self, task:Task, **kwargs:Any) -> Tuple[Solution, float]:
         """
         Brute force solver.
