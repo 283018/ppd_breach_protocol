@@ -12,11 +12,9 @@ from warnings import warn
 
 
 
-@register_solver('brute', 'bf')
+@register_solver('bf', 'brute')
 class BruteSolver(Solver):
-    """
-    Brute-Force solver
-    """
+    """Brute-Force solver"""
     _allowed_kwargs = {'to_prune':bool, 'avoid_c':bool}
 
 
@@ -35,18 +33,34 @@ class BruteSolver(Solver):
         """
         Brute force solver.
 
-        Uses DFS serach across all possible paths.
-        Uses c++ module if possible.
-        If c++ back fails, run python based methods wrapped in numba jit-compiler with similar execution times,
-        but very noticeable time overhead for recompilation on different-sized inputs.
+        Direct approach, using DFS search across all possible paths,
+        allow to optional B&B pruning when brach achieve the best possible score.
+        Uses c++ module if available; falls back to python-numba implementation if cpp fails.
 
-        Possible keyword arguments:
-            - to_prune:bool=True - if True allow B&B pruning, and best-score loop cut, essentially heuristic, that allows for non-optimal solutions (optimal solution is one, that uses the least buffer across all maximum-scored solutions).
-            - avoid_c:bool=False - if True skip call to c++ back and jump to python-numba implementation.
+        ----
+        .. warning::
+            ****WARNING****: for large-scale tasks may take unreasonable long time, even with enabled pruning.
+        ----
 
-        :param task: Task instance.
+        .. note::
+            Python-Numba implementation has similar execution times, but incurs noticeable overhead for recompilation on differently-sized inputs.
+            (``avoid_c=True``) may significantly impact performance for large amount of tasks.
+
+        Keyword arguments:
+           - **to_prune**: *bool* = ``True``
+             If True, allows branch-and-bound pruning and best-score loop cut.
+             *Heuristic* may yield non-optimal solutions (optimal solution uses the least buffer among maximum-scored solutions).
+           - **avoid_c**: *bool* = ``False``
+             If True, skips C++ backend and uses Python-Numba implementation.
+
+        .. important::
+            **IMPORTANT**: Disabling C++ (``avoid_c=True``) may significantly impact performance for large-scale tasks.
+
+
+        :param task: ``Task`` instance.
         :param kwargs:
-        :return: found Solution, main execution time (without pre-calculation)
+        :return: ``tuple``: (found ``Solution`` or ``NoSolution``, main execution time)
+            excluding pre- and post- calculations.
         """
         self._validate_kwargs(kwargs)
         enable_pruning = kwargs.get("to_prune", True)

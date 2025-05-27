@@ -55,8 +55,9 @@ def ensure_reset(method):
 
 
 # noinspection DuplicatedCode
-@register_solver('scip', 'sc')
+@register_solver('sc', 'scip')
 class ScipSolver(Solver):
+    """SCIP solver"""
     _allowed_kwargs = {"output_flag": bool, "strict_opt": bool}
 
     model: Model
@@ -80,16 +81,27 @@ class ScipSolver(Solver):
         """
         Linear programming solver.
 
-        Uses SCIP via PySCIPOpt API.
-        Build constraints-based model to find optimal or near-optimal (if previous is not possible) solutions.
+        Exact approach using SCIP solver via `PySCIPOpt` API for constraint-based modeling.
+        Find optimal (if possible) or near-optimal solutions.
 
-        Possible keyword arguments:
-            - output_flag:bool=False - if True allow solver to output full optimization information in console.
-            - strict_opt:bool=False - if True enforce strictly optimal solution return, will raise OptimizationError if model build failed or solution status is not optimal.
+        ----
+        .. important::
+            **IMPORTANT**: Significantly slower comparing to Gurobi solver, but does not restrict model size.
+        ----
 
-        :param task:
+        .. note::
+           May return ``NoSolution`` or raise ``OptimizationError`` if model building fails or solution status is non-optimal.
+
+        Keyword arguments:
+           - **output_flag**: *bool* = ``False``
+             If True, enables verbose solver output to console.
+           - **strict_opt**: *bool* = ``False``
+             If True, enforces strictly optimal solutions. Raises `OptimizationError` if the model fails or the solution status is non-optimal.
+
+        :param task: ``Task`` instance.
         :param kwargs:
-        :return: found Solution or NoSolution, main execution time (without pre-calculation but including model build time)
+        :return: ``tuple``: (found ``Solution`` or ``NoSolution``, main execution time)
+            excluding pre- and post- calculations.
         """
         self._validate_kwargs(kwargs)
         output_flag = kwargs.get('output_flag', False)

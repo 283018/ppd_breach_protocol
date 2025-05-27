@@ -39,8 +39,9 @@ class SolCandidate:
         )
 
 
-@register_solver('ant_col', 'ac')
+@register_solver('ac', 'ant_col')
 class AntColSolver(SeedableSolver):
+    """Ant-Colony solver"""
     _allowed_kwargs = {
         "avoid_c_back":bool,
 
@@ -75,11 +76,12 @@ class AntColSolver(SeedableSolver):
             print(f"\rSuccessfully initialized ant-colony solver in {end_init - start_init:.4} sec", flush=True,)
 
 
-    def seed(self, seed:int|integer|None) -> Self:
+    def seed(self, seed:int|integer=None) -> Self:
         """
-        Allow to set seed for reusability
-        :param seed: int or numpy
-        :return: Instance of AntColSolver
+        Set or re-set RNG seed for reproducibility, enabling method chaining.
+
+        :param seed: RNG seed. If None, uses system-generated state.
+        :return: Self instance
         """
         if seed is not None and not isinstance(seed, (int, integer)):
             raise TypeError("seed must be an integer")
@@ -94,46 +96,45 @@ class AntColSolver(SeedableSolver):
         Meta-heuristic approach, using ant-colony optimization (ACO) algorithm.
         Uses c++ module if possible, falls back to python implementation if c++ fails.
 
+        ----
+        .. warning::
+            ****WARNING****: Using ``stagnant_limit<0<n_iterations`` may cause unreasonable long loops with 2³¹-1 iterations.
+        ----
+
         .. note::
            Python implementation is significantly slower and outdated compared to the C++ version.
 
-        Params:
+        .. seealso::
+            ``.seed()`` allow to set seed for reproducibility. If seed not set, uses system-generated state.
+
+        Keyword arguments:
            - **avoid_c**: *bool* = ``False``
              If True, skips C++ backend and uses pure Python implementation.
-             *NOT RECOMMENDED*: Python implementation is slower and outdated [[1]].
-
+             *NOT RECOMMENDED*: Python implementation is much slower and generally deprecated.
            - **n_ants**: *int* = ``task.matrix.size``
              Number of ants per iteration.
-
            - **max_iter**: *int* = ``0``
              Maximum iterations; set to `INT_MAX` (2³¹-1) if ≤ 0, stopping only when exceeding `stag_lim`.
-
            - **stag_lim**: *int* = ``n*buffer_size*num_demons``
              Allowed iterations without improvement.
-
            - **alpha**: *float* = ``0.1``
              Attractiveness of pheromone trails.
-
            - **beta**: *float* = ``0.4``
              Heuristic matrix importance (reward-based cell attractiveness).
-
            - **evap**: *float* = ``0.475``
              Pheromone decay rate.
-
            - **q**: *float* = ``250.0``
              Pheromone deposited per ant on their path.
 
         Stagnant limit modes:
-            * ``== 0``: Default - calculated from task parameters
-            * ``< 0``: No stagnation control
-            * ``> 0``: Hard limit on stagnant iterations
+            * ``==0``: Default - calculated from task parameters
+            * ``<0``: No stagnation control
+            * ``>0``: Hard limit on stagnant iterations
 
-        .. warning::
-            **WARNING**: Using ``stagnant_limit < 0 < n_iterations`` may cause near-infinite loops with 2³¹-1 iterations.
-
-        :param task: Task instance.
+        :param task: ``Task`` instance.
         :param kwargs:
-        :return: tuple: (found Solution or NoSolution, main execution time) excluding pre- and post- calculations.
+        :return: ``tuple``: (found ``Solution`` or ``NoSolution``, main execution time)
+            excluding pre- and post- calculations.
         """
         self._validate_kwargs(kwargs)
         params = {**self._DEFAULT_HIPERPARAMS, **kwargs}

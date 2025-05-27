@@ -21,38 +21,51 @@ def ant_colony(
     q: float,
     seed: int,
     n_ants: int,
-    n_iterations: int
+    n_iterations: int,
+    stagnant_limit: int,
 ) -> tuple[NDArray[int8], int|integer, int|integer, NDArray[int8]]:
     """
-    Solve breach protocol task with ant colony optimization, using c++ back.
+    Solve breach protocol task with ant colony optimization using C++ backend.
 
-    Require pre-calculating or generating parameters:
-        - flat_demons
-        - n
-        - num_demons
-        - demons_lengths
-        - max_demon_len
-        - heuristic
-        - seed
+    Requires pre-calculated/generated parameters:
+        - ``flat_demons``
+        - ``n``
+        - ``num_demons``
+        - ``demons_lengths``
+        - ``max_demon_len``
+        - ``heuristic``
+        - ``seed``
 
-    :param matrix: Task.matrix
-    :param flat_demons: 2d ndarray, padded with '-1' demons array
-    :param demons_costs: Task.demons_costs
-    :param buffer_size: Task.buffer_size
-    :param n: side of Task.matrix(nxn)
+    .. note::
+        - ``seed``: Must be in range (``UINT_MIN``, ``UINT_MAX``) = (``0``, ``2³²-1``)
+        - ``n_iterations`` If ≤ 0, set to `INT_MAX` (2³¹-1)
+        - ``stagnant_limit`` modes:
+              - ``==0``: Calculated from task
+              - ``<0``: No stagnation control
+              - ``>0``: Hard limit
+
+    .. warning::
+        **WARNING**: Using ``stagnant_limit < 0 < n_iterations`` may cause infinite loops.
+
+    :param matrix: ``Task.matrix`` (nxn)
+    :param flat_demons: 2d array of demons, padded with ``-1`` demons array
+    :param demons_costs: ``Task.demons_costs``
+    :param buffer_size: ``Task.buffer_size``
+    :param n: side length of ``matrix``
     :param num_demons: amount of demons
     :param demons_lengths: 1d array with original demons lengths
-    :param max_demon_len: length of longest demon
-    :param heuristic: 1d ndarray flattened array of Task.matrix.size with attractiveness of cells in matrix
-        based on symbol frequent in Task.demons sequences
-    :param alpha:
-    :param beta:
-    :param evaporation:
-    :param q:
-    :param seed: seed in range (0, 2³²-1)
-    :param n_ants:
-    :param n_iterations:
-    :return: tuple of path as 2d ndarray (nx2), cost, length of path, buffer sequence as 1d ndarray
+    :param max_demon_len: length of the longest demon
+    :param heuristic: 1d flattened array of ``Task.matrix.size`` with attractiveness of cells in matrix
+        based of ``Task.demons`` symbols
+    :param alpha: metaheuristic hiperparametr
+    :param beta: metaheuristic hiperparametr
+    :param evaporation: metaheuristic hiperparametr
+    :param q: metaheuristic hiperparametr
+    :param seed: RNG seed
+    :param n_ants: number of ants per iteration
+    :param n_iterations: maximum number of iterations
+    :param stagnant_limit: amount of allowed stagnant iterations
+    :return: tuple: (``path`` as 2D ndarray (nx2), ``cost``, ``path_length``, ``buffer_sequence`` as 1d ndarray)
     """
     ...
 

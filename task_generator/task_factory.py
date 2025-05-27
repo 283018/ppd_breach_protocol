@@ -13,17 +13,38 @@ class TaskFactory:
     """
     Factory for Task, callable object.
 
-    Support shortcut for .gen with .__call__
+    Main method for generation is ``.gen()``, supports shortcut via ``.__call__()``
+    Secondary method is ``.gen_manual()``
 
-    For .gen (main method) supports mode parameter:
-        - -3: varying complication of tasks (easy).
-        - -2: varying complication of tasks (medium).
-        - -1: varying complication of tasks (hard).
-        -  0 : default, high deviation for varying complication of tasks.
-        -  1 : set size and lengths, similar to base game bp (easy).
-        -  2 : set size and lengths (medium).
-        -  3 : set size and lengths (hard).
-        -  4 : set size and lengths (very hard).
+    .. seealso::
+        ``.gen()``
+          ``mode:int=0``:
+            - ``-3``: Varying complication (easy)
+            - ``-2``: Varying complication (medium)
+            - ``-1``: Varying complication (hard)
+            - ``0``:  Default, high deviation for varying complication
+            - ``1``:  Set size and lengths, similar to base game BP (easy)
+            - ``2``:  Set size and lengths (medium)
+            - ``3``:  Set size and lengths (hard)
+            - ``4``:  Set size and lengths (very hard)
+          ``amount:int=1``
+        ``.gen_manual()``
+           ``matrix_size``:
+             - Size of matrix to generate.
+           ``demons_specs``:
+             - Demon configuration: dict {length: count} or array[i] = count of length i.
+           ``buffer_size``:
+             - Buffer capacity for the generated task.
+           ``matrix_mode``:
+             - Mode selection (see matrix mode description).
+             - ``0``: Standard minigame with base game symbols (equal chances) [3-6]
+             - ``1``: DLC minigame (mostly DLC symbols, with small changes for base symbols) [5-8]
+             - ``2``: Full symbol set with decreasing appearance chances [6-12]
+             - ``3``: Full symbol set with equal chances (>10)
+             - ``4``: *"Good luck xD"* - Not recommended
+           ``amount:int=1``:
+             - Optional number of tasks to generate.
+
 
     :param seed: optional, seed for main rng, rest derived from it.
     """
@@ -36,7 +57,12 @@ class TaskFactory:
         self.reseed(seed)
 
     def reseed(self, seed: int|integer=None) -> Self:
-        """Allow to reset state of all internal rngs, support chaining"""
+        """
+        Reset internal RNG states with optional seed, enabling method chaining.
+
+        :param seed: RNG seed. If None, uses system-generated state.
+        :return: Self instance
+        """
         self._rng = default_rng(seed)
 
         main_ss_seed = self._rng.integers(0, 2 ** 32)
@@ -56,21 +82,19 @@ class TaskFactory:
         """
         Main generator function.
 
-        If param: amount >1 returns list with tasks, if default - single instance.
-
         Generation modes:
-            - -3: varying complication of tasks (easy).
-            - -2: varying complication of tasks (medium).
-            - -1: varying complication of tasks (hard).
-            -  0 : default, high deviation for varying complication of tasks.
-            -  1 : set size and lengths, similar to base game bp (easy).
-            -  2 : set size and lengths (medium).
-            -  3 : set size and lengths (hard).
-            -  4 : set size and lengths (very hard).
+            - ``-3``: Varying complication (easy)
+            - ``-2``: Varying complication (medium)
+            - ``-1``: Varying complication (hard)
+            - ``0``:  Default, high deviation for varying complication
+            - ``1``:  Set size and lengths, similar to base game BP (easy)
+            - ``2``:  Set size and lengths (medium)
+            - ``3``:  Set size and lengths (hard)
+            - ``4``:  Set size and lengths (very hard)
 
-        :param mode: generation mode
-        :param amount: optional: amount of task to generate
-        :return: Task instance or list of Task instances
+        :param mode: generation mode (see list above)
+        :param amount: Optional number of tasks to generate. If ``amount>1``, returns list; if ``1`` (default), returns single instance
+        :return: ``Task`` instance or ``list`` of ``Task`` instances
         """
 
         if mode not in TASK_MODES:
@@ -205,24 +229,24 @@ class TaskFactory:
 
     def gen_manual(self, matrix_size:int, demons_specs:dict|ndarray, buffer_size:int, matrix_mode:int=0, amount:int=1) -> Task|List[Task]:
         """
-        Manually generates Task according to given parameters.
+        Manually generates Task instance based on specified parameters.
 
-        Does not verify inputs, delegate that to generators.
-        if param: amount >1 returns list with tasks, if default - single instance
+        Does not verify inputs - delegates validation to generators.
+        Returns single Task if `amount == 1` (default), or list of Tasks if `amount > 1`.
 
-        Matrix mode description & recommended size:
-            - 0: simulates standard minigame, uses only base game symbols with equal chances; [3-6]
-            - 1: simulates dlc minigame, uses mostly dlc symbols, with small chances for base game symbols; [5-8]
-            - 2: uses full set (base + dlc), slowly decrease chances of appearing for each new symbol, add step for dlc; [6-12]
-            - 3: uses full set with equal chances for all; (>10)
-            - 4:"good luck xD"; not recommended
+        Matrix mode description & recommended sizes:
+           - ``0``: Standard minigame with base game symbols (equal chances) [3-6]
+           - ``1``: DLC minigame (mostly DLC symbols, with small changes for base symbols) [5-8]
+           - ``2``: Full symbol set with decreasing appearance chances [6-12]
+           - ``3``: Full symbol set with equal chances (>10)
+           - ``4``: *"Good luck xD"* - Not recommended
 
-        :param matrix_size:
-        :param demons_specs: dict(length:count) | ndarray[i] = count of len i
-        :param buffer_size:
-        :param matrix_mode: (copied from GeneratorMatrix)
-        :param amount: optional: amount of task to generate
-        :return: Task instance or list of Task instances
+        :param matrix_size: Size of matrix to generate.
+        :param demons_specs: Demon configuration: dict {length: count} or array[i] = count of length i.
+        :param buffer_size: Buffer capacity for the generated task.
+        :param matrix_mode: Mode selection (see matrix mode description above).
+        :param amount: Optional number of tasks to generate.
+        :return: `Task`` instance or ``list`` of ``Task`` instances
         """
         if not isinstance(amount, int) or amount <= 0:
             raise ValueError("amount must be positive integer")

@@ -202,26 +202,26 @@ def bprint(task:Task, solutions:Sequence[Solution|NoSolution], times:Sequence[fl
 def bprint(tasks:Sequence[Task], solutions:Sequence[Solution|NoSolution], times:Sequence[float]) -> None:
     bprint(tasks, solutions, times, False)
 @dispatch((list, tuple), (list, tuple), (list, tuple), bool)
-def bprint(tasks:Sequence[Task], solutions:Sequence[Solution|NoSolution], times:Sequence[float], translate:bool=False) -> None:
+def bprint(tasks:Sequence[Task], solutions:Sequence[Solution|NoSolution], times:Sequence[float], translate:bool=False) -> None:     # noqa
     """
     Multiple dispatched function for printing Tasks and Solution in console.
 
-    Note:
-        - Due to limitations of multipledispatch does not support keyword arguments.
-        - Sequence[] typehint used only for simplicity, dispatcher accept only List or Tuple (or their inheritances) with mentioned structs.
-        - In all combinations translate - optional argument
+    .. note::
+        - Multipledispatch does not support keyword arguments.
+        - `Sequence[]` typehint is used for simplicity; accepts only `List` or `Tuple` (or subclasses) with valid structs.
+        - `translate` is an optional argument in all cases.
 
 
     Accept different combinations of arguments:
-        - Task, translate - single task
-        - Sequence[Task], translate - multiple tasks
-        - Task, Solution|NoSolution, translate - prints single task and solution
-        - Task, Sequence[Solution|NoSolution], translate - prints single task with different solutions
-        - Sequence[Task], Sequence[Solution|NoSolution], translate - prints multiple tasks with corresponding solutions
-        - Task, Solution|NoSolution, time, translate - prints single task, solution and time
-        - Task, Sequence[Solution|NoSolution], Sequence[float], translate - single tasks with corresponding solutions and times of solving
-        - Sequence[Task], Sequence[Solution|NoSolution], Sequence[float], translate - multiple tasks with corresponding solutions and time of solving
+        - ``Task``, ``translate``: Single task
+        - ``Sequence[Task]``, ``translate``: Multiple tasks
+        - ``Task``, ``Solution|NoSolution``, ``translate``: single Task and single Solution
+        - ``Task``, ``Sequence[Solution|NoSolution]``, ``translate``: single Task with multiple Solutions
+        - ``Sequence[Task]``, ``Sequence[Solution|NoSolution]``, ``translate``: multiple Tasks with multiple corresponding Solutions
+        - ``Task``, ``Solution|NoSolution``, ``time``, ``translate``: Task, Solution, and solving time
+        - ``Sequence[Task]``, ``Sequence[Solution|NoSolution]``, ``Sequence[float]``, ``translate``: Tasks with solutions and times
 
+    :param translate: Optional translation flag for int-to-breach-hex mapping.
     """
     if len(tasks) != len(solutions) != len(times):
         raise ValueError(f"Lengths are not equal: {len(tasks)}, {len(solutions)} ,{len(times)}")

@@ -36,8 +36,9 @@ def ensure_reset(method):
 
 
 # noinspection DuplicatedCode
-@register_solver('gurobi', 'gb')
+@register_solver('gb', 'gurobi')
 class GurobiSolver(Solver):
+    """Gurobi solver"""
     _allowed_kwargs = {'output_flag': bool, 'strict_opt': bool}
 
     model: Model
@@ -68,17 +69,27 @@ class GurobiSolver(Solver):
         """
         Linear programming solver.
 
-        Uses Gurobi via gurobipy API.
-        Build constraints-based model to find optimal or near-optimal (if previous is not possible) solutions.
-            IMPORTANT: due to Gurobi license limitation can not solve particularly large tasks, will return NoSolution or raise OptimizationError
+        Exact approach using Gurobi solver via `gurobipy` API for constraint-based modeling.
+        Find optimal (if possible) or near-optimal solutions.
 
-        Possible keyword arguments:
-            - output_flag:bool=False - if True allow solver to output full optimization information in console.
-            - strict_opt:bool=False - if True enforce strictly optimal solution return, will raise OptimizationError if model build failed or solution status is not optimal.
+        ----
+        .. important::
+           **IMPORTANT**: Due to Gurobi license limitations, model size is restricted and large-scale tasks may fail.
+        ----
 
-        :param task:
+        .. note::
+           May return ``NoSolution`` or raise ``OptimizationError`` if model building fails or solution status is non-optimal.
+
+        Keyword arguments:
+           - **output_flag**: *bool* = ``False``
+             If True, enables verbose solver output to console.
+           - **strict_opt**: *bool* = ``False``
+             If True, enforces strictly optimal solutions. Raises `OptimizationError` if the model fails or the solution status is non-optimal.
+
+        :param task: ``Task`` instance.
         :param kwargs:
-        :return: found Solution or NoSolution, main execution time (without pre-calculation but including model build time)
+        :return: ``tuple``: (found ``Solution`` or ``NoSolution``, main execution time)
+            excluding pre- and post- calculations.
         """
         self._validate_kwargs(kwargs)
         output_flag = kwargs.get('output_flag', False)

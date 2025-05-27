@@ -1,62 +1,89 @@
 from typing import overload, Literal
+from collections import defaultdict
 
 from .solvers import BruteSolver, GurobiSolver, AntColSolver, ScipSolver
 from .solvers_abc import Solver, solver_registry
 
 
 @overload
-def get_solver(name: Literal['gurobi', 'gb']) -> GurobiSolver:
-    ...
+def get_solver(name: Literal['gurobi', 'gb']) -> GurobiSolver: ...
 
 @overload
-def get_solver(name: Literal['brute', 'bf']) -> BruteSolver:
-    ...
+def get_solver(name: Literal['brute', 'bf']) -> BruteSolver: ...
 
 @overload
-def get_solver(name: Literal['ant_col', 'ac']) -> AntColSolver:
-    ...
+def get_solver(name: Literal['ant_col', 'ac']) -> AntColSolver: ...
 
 @overload
-def get_solver(name: Literal['scip', 'sc']) -> ScipSolver:
-    ...
+def get_solver(name: Literal['scip', 'sc']) -> ScipSolver: ...
 
 
-# TODO: kwargs for seed
 def get_solver(name: str) -> Solver:
     """
-    Retrieve a Solver instance by name, acts as a factory for creating Solver instances.
+    Retrieve a Solver instance by name, acting as a factory for creating Solver instances.
 
-    Main method for Solver family is .solve(task: Task, **kwargs), each type may support different keyword arguments (some may support none).
-    Shortcut '.s()' and '.__call__()' methods for '.solve()' are available (all require same args and kwargs as .solve()).
+    Main solver interface provides ``.solve(task:Task,**kwargs)`` method.
+    Each solver also supports ``.solve_iter(task_list:Iterable[Task],**kwargs)`` for batch processing of multiple tasks.
+    Shortcut methods ``.s()`` and ``.__call__()`` are available (all require same args/kwargs as ``.solve()``).
 
-    Solvers:
-        - Brute force solver - provide both strait-forward approach with full exploration and heuristic search.
-        - Linear programming solver - constraint-based solution search.
-        - Ant-colony - ant-colony optimization metaheuristic approach.
+    Supported Solvers & type code:
+        - **Gurobi LP** ``{'gurobi','gb'}``: Constraint-based optimization using Gurobi via `gurobipy`.
+        - **SCIP LP** ``{'scip','sc'}``: Constraint-based optimization using SCIP via `PySCIPOpt`.
+        - **Brute-force** ``{'brute','bf'}``: DFS search with optional B&B pruning for full exploration or heuristic search.
+        - **Ant-colony** ``{'ant_col','ac'}``: Ant Colony Optimization (ACO) metaheuristic using C++ backend.
 
-    Keyword arguments:
-        -----=====#####=====-----
+    ---
 
-    gurobi:
-        - output_flag:bool=False
-            if True allow solver to output full optimization information in console.
-        - strict_opt:bool=False
-            if True enforce strictly optimal solution return, will raise OptimizationError if model build failed or solution status is not optimal.
-    scip:
-        - output_flag:bool=False
-            if True allow solver to output full optimization information in console.
-        - strict_opt:bool=False
-            if True enforce strictly optimal solution return, will raise OptimizationError if model build failed or solution status is not optimal.
-    brute:
-        - to_prune:bool=True
-            if True allow B&B pruning, and best-score loop cut, essentially heuristic, that allows for non-optimal solutions (optimal solution is one, that uses the least buffer across all maximum-scored solutions).
-        - avoid_c:bool=False
-            if True skip call to c++ back and jump to Python/numba implementation.
-    ant_col:
-        - Not added yet
+    Keyword arguments by Solver:
 
-    :param name: code for Solver type, currently supported: ('gurobi', 'brute', 'ant_col')
-    :return: instance of specific (specified by name) type Solver
+    **Gurobi LP**
+       - ``output_flag``: *bool* = ``False``
+         Enable verbose solver output.
+       - ``strict_opt``: *bool* = ``False``
+         Enforce strictly optimal solutions. Raises ``OptimizationError`` if model fails or solution status is non-optimal.
+    **SCIP LP**
+       - ``output_flag``: *bool* = ``False``
+         Enable verbose solver output.
+       - ``strict_opt``: *bool* = ``False``
+         Enforce strictly optimal solutions. Raises ``OptimizationError`` if model fails or solution status is non-optimal.
+    **Brute-force**
+       - ``to_prune``: *bool* = ``True``
+         Allow branch-and-bound pruning. *Heuristic* may yield non-optimal solutions (optimal uses least buffer among max-scored).
+       - ``avoid_c``: *bool* = ``False``
+         Skip C++ backend (NOT RECOMMENDED: Python-Numba has recompilation overhead for varying inputs).
+    **Ant-colony**
+       - ``avoid_c``: *bool* = ``False``
+         Skip C++ backend (NOT RECOMMENDED: Python implementation is outdated/slower).
+       - ``n_ants``: *int* = ``task.matrix.size``
+         Number of ants per iteration.
+       - ``max_iter``: *int* = ``0``
+         Max iterations; set to `INT_MAX` (2³¹-1) if ≤ 0.
+       - ``stag_lim``: *int* = ``n*buffer_size*num_demons``
+         Allowed iterations without improvement (modes: ``==0``: auto, ``<0``: no control, ``>0``: hard limit).
+       - ``alpha``: *float* = ``0.1``
+         Pheromone trail attractiveness.
+       - ``beta``: *float* = ``0.4``
+         Heuristic matrix importance (reward-based cell attractiveness).
+       - ``evap``: *float* = ``0.475``
+         Pheromone decay rate.
+       - ``q``: *float* = ``250.0``
+         Pheromone deposited per ant.
+
+    .. note::
+        - **Gurobi**: License restrictions may block large-scale tasks.
+        - **SCIP**: Slower than Gurobi but no model size restrictions.
+        - **Ant-colony**: Use `.seed()` to set RNG state for reproducibility.
+        - **Brute-force**: May take unreasonable long time to solve for large-scale tasks.
+
+    ----
+
+    .. warning::
+       - ***WARNING***
+        - **Brute force**: Large-scale tasks may cause unreasonable runtime even with pruning.
+        - **Ant-colony**: Using ``stagnant_limit < 0 < n_iterations`` may cause infinite loops (2³¹-1 iterations).
+
+    :param name: Solver type code: (`'gurobi'`, `'brute'`, `'ant_col'`, `'scip'`), including corresponding shortcuts.
+    :return: Instance of the specified Solver subclass.
     """
     solver_class = solver_registry.get(name, None)
     if not solver_class:
