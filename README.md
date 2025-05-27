@@ -22,9 +22,9 @@ Pybind11 is used under the terms of the **BSD 3-Clause License**. For more infor
 ## SCIP Integration  
 This project uses the **SCIP Optimization Suite** via the **[PySCIOP](https://github.com/scipopt/PySCIPOpt )** API. <br>
 SCIP is an open-source solver licensed under the **[SCIP Apache 2.0 License](https://www.scipopt.org/scip/doc/html/LICENSE.php )**, 
-while PySCIOP (used to interface with SCIP) is licensed under the **[MIT License](https://github.com/scipopt/PySCIPOpt/blob/master/LICENSE )**. 
+while PySCIOP (used as interface with SCIP) is licensed under the **[MIT License](https://github.com/scipopt/PySCIPOpt/blob/master/LICENSE )**. 
 
-- **Note**: Neither SCIP nor PySCIOP binaries/source code are included in this repository. To use SCIP functionality:
+- **Note**: Neither SCIP nor PySCIOP binaries/source code are included in this repository.
 
 ---
 
