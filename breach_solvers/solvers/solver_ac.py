@@ -1,5 +1,5 @@
 from breach_solvers.solvers_abc import SeedableSolver, register_solver
-from core import Task, Solution, DUMMY_TASK
+from core import Task, Solution, DUMMY_TASK, NoSolution
 from cpp import ant_colony
 
 from numpy import array, full, ones, array_equal, concatenate, bincount, ndarray, integer, int8
@@ -7,12 +7,14 @@ from numpy.random import default_rng, Generator
 from numpy import sum as npsum
 from dataclasses import dataclass
 from time import perf_counter
+from warnings import warn
 
-from typing import List, Tuple
+from typing import List, Tuple, Self
 from numpy.typing import NDArray
 
 
-RANGE_INT32 = (0, 2**32-1)
+RANGE_UINT32 = (0, 2**32-1)
+RANGE_INT32 = (-2**31, 2**31-1)
 
 @dataclass
 class SolCandidate:
@@ -37,28 +39,26 @@ class SolCandidate:
         )
 
 
-@register_solver("ant_col")
+@register_solver('ant_col', 'ac')
 class AntColSolver(SeedableSolver):
     _allowed_kwargs = {
         "avoid_c_back":bool,
 
         "n_ant": int,
-        "n_iterations": int,
+        "max_iter": int,
+        "stag_lim": int,
+
         "alpha": float,
         "beta": float,
-        "evaporation": float,
+        "evap": float,
         "q": float,
     }
 
-    _DEFAULT_PARAMS = {
-        "avoid_c_back":False,
-
-        "n_ants": 50,
-        "n_iterations": 100,
-        "alpha": 1.0,
-        "beta": 1.0,
-        "evaporation": 0.05,
-        "q": 1.0,
+    _DEFAULT_HIPERPARAMS = {
+        "alpha": 0.1,
+        "beta": 0.4,
+        "evap": 0.475,
+        "q": 250.,
     }
 
     rng: Generator
@@ -75,46 +75,81 @@ class AntColSolver(SeedableSolver):
             print(f"\rSuccessfully initialized ant-colony solver in {end_init - start_init:.4} sec", flush=True,)
 
 
-    def seed(self, seed):
-        if not isinstance(seed, (int, integer)):
+    def seed(self, seed:int|integer|None) -> Self:
+        """
+        Allow to set seed for reusability
+        :param seed: int or numpy
+        :return: Instance of AntColSolver
+        """
+        if seed is not None and not isinstance(seed, (int, integer)):
             raise TypeError("seed must be an integer")
         self.rng = default_rng(seed)
+        return self
 
 
     def solve(self, task: Task, **kwargs):
         """
         Ant-colony solver.
 
-        Meta-heuristic approach, uses ant-colony optimization algorithm.
-        Uses c++ module if possible.
-        If c++ back fails, run python based methods, which takes ~10-12 more time
+        Meta-heuristic approach, using ant-colony optimization (ACO) algorithm.
+        Uses c++ module if possible, falls back to python implementation if c++ fails.
 
-        Possible keyword arguments:
-            - avoid_c:bool=False - if True skip call to c++ back and jump to pure python implementation.
+        .. note::
+           Python implementation is significantly slower and outdated compared to the C++ version.
 
-            - n_ants:int - amount of ants to run in one iteration.
-            - n_iterations:int - amount of iterations.
-            - alpha:float - attractiveness of pheromone trail on ants.
-            - beta:float - importance of heuristic matrix (attractiveness of cells with higher reward)
-            - evaporation:float - pheromone decay tempo.
-            - q:float - amount of pheromones each ant leave on their path
+        Params:
+           - **avoid_c**: *bool* = ``False``
+             If True, skips C++ backend and uses pure Python implementation.
+             *NOT RECOMMENDED*: Python implementation is slower and outdated [[1]].
+
+           - **n_ants**: *int* = ``task.matrix.size``
+             Number of ants per iteration.
+
+           - **max_iter**: *int* = ``0``
+             Maximum iterations; set to `INT_MAX` (2³¹-1) if ≤ 0, stopping only when exceeding `stag_lim`.
+
+           - **stag_lim**: *int* = ``n*buffer_size*num_demons``
+             Allowed iterations without improvement.
+
+           - **alpha**: *float* = ``0.1``
+             Attractiveness of pheromone trails.
+
+           - **beta**: *float* = ``0.4``
+             Heuristic matrix importance (reward-based cell attractiveness).
+
+           - **evap**: *float* = ``0.475``
+             Pheromone decay rate.
+
+           - **q**: *float* = ``250.0``
+             Pheromone deposited per ant on their path.
+
+        Stagnant limit modes:
+            * ``== 0``: Default - calculated from task parameters
+            * ``< 0``: No stagnation control
+            * ``> 0``: Hard limit on stagnant iterations
+
+        .. warning::
+            **WARNING**: Using ``stagnant_limit < 0 < n_iterations`` may cause near-infinite loops with 2³¹-1 iterations.
 
         :param task: Task instance.
         :param kwargs:
-        :return: found Solution, main execution time (without pre-calculation)
+        :return: tuple: (found Solution or NoSolution, main execution time) excluding pre- and post- calculations.
         """
-
         self._validate_kwargs(kwargs)
-        params = {**self._DEFAULT_PARAMS, **kwargs}
-        avoid_c_back = params["avoid_c_back"]
-
-        n_ants = params["n_ants"]
-        n_iterations = params["n_iterations"]
+        params = {**self._DEFAULT_HIPERPARAMS, **kwargs}
+        avoid_c_back = params.get("avoid_c_back", False)
 
         alpha = params["alpha"]
         beta = params["beta"]
-        evaporation = params["evaporation"]
+        evaporation = params["evap"]
         q = params["q"]
+
+        n_ants = params.get("n_ants", None)
+        n_iterations = params.get("max_iter", 0)
+        stagnant_limit = params.get("stag_lim", 0)
+
+        if stagnant_limit < 0 < n_iterations:
+            warn("Blah blah infinite execution blah")
 
 
         matrix = task.matrix
@@ -125,6 +160,8 @@ class AntColSolver(SeedableSolver):
         # pre-calculations
         n, _ = matrix.shape
         size = matrix.size
+
+        n_ants = n_ants or size
 
         num_demons = len(demons)
         demons_lengths = array([d.size for d in demons])
@@ -137,7 +174,7 @@ class AntColSolver(SeedableSolver):
         # starting pheromones and heuristic
         pheromone = ones((size, size), dtype=float)
         heuristic = self._get_freqs(task)
-        seed =  self.rng.integers(*RANGE_INT32)
+        seed =  self.rng.integers(*RANGE_UINT32)
 
         # creating args pools
         common_args = (
@@ -158,8 +195,9 @@ class AntColSolver(SeedableSolver):
             alpha, beta,
             evaporation, q,
             seed, n_ants, n_iterations,
+            stagnant_limit,
         )
-        
+
 
         if avoid_c_back:
             print("\nJumped to pyton")
@@ -173,10 +211,13 @@ class AntColSolver(SeedableSolver):
                 end = perf_counter()
                 best = SolCandidate(*res)
             except Exception as e:
-                print(f"\nError on c++ back, running python ({e})")
+                warn(f"\nError on c++ back, running python\n   {e}")
                 start = perf_counter()
                 best = self._run_ants(*common_args)
                 end = perf_counter()
+
+        if best.path.size == 0:
+            return NoSolution(reason="No valid solution possible for given task"), 0.0
 
         return best.accept().fill_solution(task), end - start
 
