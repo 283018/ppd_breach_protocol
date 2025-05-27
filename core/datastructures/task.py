@@ -1,6 +1,6 @@
 from dataclasses import dataclass
-from typing import Tuple, Self
-from numpy import ndarray, integer, issubdtype, array
+from typing import Tuple, Self, Any
+from numpy import ndarray, integer, issubdtype, array, array_equal
 
 
 
@@ -55,6 +55,16 @@ class Task:
 
     def __deepcopy__(self, memo: dict) -> Self:
         return self.copy()
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, Task):
+            return NotImplemented
+        return (
+            array_equal(self.matrix, other.matrix)
+            and all(array_equal(s, o) for s, o in zip(self.demons, other.demons))
+            and array_equal(self.demons_costs, other.demons_costs)
+            and self.buffer_size == other.buffer_size
+        )
 
 
 DUMMY_TASK:Task = Task(

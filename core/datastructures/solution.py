@@ -1,7 +1,7 @@
 from dataclasses import dataclass
-from numpy import ndarray, integer, int8, zeros
+from numpy import ndarray, integer, int8, zeros, array_equal
 from numpy.lib.stride_tricks import sliding_window_view
-from typing import Optional, Self
+from typing import Optional, Self, Any
 from warnings import warn
 
 
@@ -102,6 +102,37 @@ class Solution:
     def __deepcopy__(self, memo: dict) -> Self:
         return self.copy()
 
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, Solution):
+            return NotImplemented
+
+        if (
+                self.buffer_sequence is None
+                or other.buffer_sequence is None
+                or self.active_demons is None
+                or other.active_demons is None
+                or self.total_points is None
+                or other.total_points is None
+        ):
+            warn("Comparison of unfilled Solutions")
+            return False
+
+        return (
+            array_equal(self.path, other.path)
+            and array_equal(self.buffer_sequence, other.buffer_sequence)
+            and array_equal(self.active_demons, other.active_demons)
+            and self.total_points == other.total_points
+        )
+
+    def __lt__(self, other: Any) -> bool:
+        if not isinstance(other, Solution):
+            return NotImplemented
+
+        if self.total_points != other.total_points:
+            return self.total_points < other.total_points
+
+        return len(self.path) < len(other.path)
+
 
 @dataclass(slots=True)
 class NoSolution(Solution):
@@ -116,6 +147,10 @@ class NoSolution(Solution):
             raise ValueError("In NoSolution, 'path' must always be None")
         if any(val is not None for val in (self.total_points, self.active_demons, self.buffer_sequence)):
             raise ValueError("NoSolution can not contain any of {buffer_sequence, active_demons, total_points}")
+
+    def __repr__(self) -> str:
+        reason = self.reason or "Unknown"
+        return f"NoSolution({reason=})"
 
     def fill_solution(self, from_task=None) -> Self :
         warn("Unable to fill NoSolution")
