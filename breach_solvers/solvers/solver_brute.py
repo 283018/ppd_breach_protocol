@@ -11,7 +11,6 @@ from warnings import warn
 
 
 
-
 @register_solver('bf', 'brute')
 class BruteSolver(Solver):
     """Brute-Force solver"""
@@ -34,24 +33,37 @@ class BruteSolver(Solver):
         Brute force solver.
 
         Direct approach, using DFS search across all possible paths,
-        allow to optional B&B pruning when brach achieve the best possible score.
+        allow to optional B&B pruning when breach achieve the best possible score.
         Uses c++ module if available; falls back to python-numba implementation if cpp fails.
 
         ----
         .. warning::
-            ****WARNING****: for large-scale tasks may take unreasonable long time, even with enabled pruning.
+            ****WARNING****: for large-scale tasks may take unreasonable long time, even with enabled pruning, consider setting reasonable timeout.
         ----
 
         .. note::
-            Python-Numba implementation has similar execution times, but incurs noticeable overhead for recompilation on differently-sized inputs.
-            (``avoid_c=True``) may significantly impact performance for large amount of tasks.
+            Python-Numba implementation has similar execution times, but force noticeable overhead for recompilation on differently-sized inputs.
+            (``avoid_c=True``) may significantly impact performance for large amount of tasks. Besides does not support ``timeout``
+
+            And generally **should not be used**.
+
+        .. note:
+            Timeout itself realised on near-zero time cost then not set.
+
+            Then time limet exceeded return *current best found* solution.
+
+            Returned ``execution_time`` may be slightly larger than ``timeout`` due to finalizing calculation after exceeding .
+
+
 
         Keyword arguments:
-           - **to_prune**: *bool* = ``True``
+           - ``to_prune``: *bool* = ``True``
              If True, allows branch-and-bound pruning and best-score loop cut.
              *Heuristic* may yield non-optimal solutions (optimal solution uses the least buffer among maximum-scored solutions).
-           - **avoid_c**: *bool* = ``False``
+           - ``avoid_c``: *bool* = ``False``
              If True, skips C++ backend and uses Python-Numba implementation.
+           - ``timeout``: *float* = ``0.0``
+             If ``>0.`` set time limit on execution, if ``<=0.`` process task as normal (look ``enable_pruning``).
 
         .. important::
             **IMPORTANT**: Disabling C++ (``avoid_c=True``) may significantly impact performance for large-scale tasks.
@@ -59,12 +71,13 @@ class BruteSolver(Solver):
 
         :param task: ``Task`` instance.
         :param kwargs:
-        :return: ``tuple``: (found ``Solution`` or ``NoSolution``, main execution time)
+        :return: ``tuple``: (found ``Solution`` or ``NoSolution``, ``execution_time``)
             excluding pre- and post- calculations.
         """
         self._validate_kwargs(kwargs)
         enable_pruning = kwargs.get("to_prune", True)
         avoid_c_back = kwargs.get("avoid_c", False)
+        time_limit = kwargs.get("time_lim", 0.0)
 
         # unpacking task
         matrix = task.matrix
@@ -87,11 +100,12 @@ class BruteSolver(Solver):
 
         # linear approximation, definitely works for up to 12x12 matrix and 12 buffer_size
         init_stack_size = int((n*buffer_s)*0.75) + 1
-
+        # ic(init_stack_size)
+        
         args = (
             matrix, padded_demons, d_lengths, d_costs,
             buffer_s, n, max_score, n_demons, init_stack_size,
-            enable_pruning
+            enable_pruning, time_limit
         )
 
         if avoid_c_back:

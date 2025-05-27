@@ -52,7 +52,7 @@ def ant_colony(
     :param demons_costs: ``Task.demons_costs``
     :param buffer_size: ``Task.buffer_size``
     :param n: side length of ``matrix``
-    :param num_demons: amount of demons
+    :param num_demons: amount of demons (``len(Task.demons)``)
     :param demons_lengths: 1d array with original demons lengths
     :param max_demon_len: length of the longest demon
     :param heuristic: 1d flattened array of ``Task.matrix.size`` with attractiveness of cells in matrix
@@ -65,7 +65,7 @@ def ant_colony(
     :param n_ants: number of ants per iteration
     :param n_iterations: maximum number of iterations
     :param stagnant_limit: amount of allowed stagnant iterations
-    :return: tuple: (``path`` as 2D ndarray (nx2), ``cost``, ``path_length``, ``buffer_sequence`` as 1d ndarray)
+    :return: tuple: (``path`` as 2d ndarray (nx2), ``cost``, ``path_length``, ``buffer_sequence`` as 1d ndarray)
     """
     ...
 
@@ -81,29 +81,33 @@ def brute_force(
     max_score: int64,
     num_demons: int,
     init_stack_size: int,
-    enable_pruning: bool
+    enable_pruning: bool,
+    time_limit: float,
 ) -> NDArray[int32]:
     """
-    Solve breach protocol task with brute force, using c++ back, runs in parallel.
+    Solve breach protocol task with brute force using C++ backend, runs in parallel.
 
-    Require pre-calculating parameters:
-        - demons_array_np
-        - demons_lengths_np
-        - n
-        - max_score
-        - num_demons
-        - init_stack_size
+    Support time limiting.
 
-    :param matrix_np: Task.matrix
-    :param demons_array_np: 2d ndarray, padded with '-1' demons array
+    Requires pre-calculating parameters:
+   - ``demons_array_np``
+   - ``demons_lengths_np``
+   - ``n``
+   - ``max_score``
+   - ``num_demons``
+   - ``init_stack_size``
+
+    :param matrix_np: ``Task.matrix`` (nxn)
+    :param demons_array_np: 2d array of demons, padded with ``-1`` demons array
     :param demons_lengths_np: 1d array with original demons lengths
-    :param demons_costs_np: Task.demons_costs
-    :param buffer_size: Task.buffer_size
-    :param n: side of Task.matrix(nxn)
-    :param max_score: numpu.int64, sum of all demons costs (max possible score)
-    :param num_demons: amount of demons
-    :param init_stack_size: estimated max stack size
-    :param enable_pruning:
-    :return: path as 2d ndarray (nx2) dtype=numpy.int32
+    :param demons_costs_np: ``Task.demons_costs``
+    :param buffer_size: ``Task.buffer_size``
+    :param n: side length of ``matrix``
+    :param max_score: sum of all ``Task.demons_costs`` (max possible score)
+    :param num_demons: amount of demons (``len(Task.demons)``)
+    :param init_stack_size: estimated ``max_stack_size``
+    :param enable_pruning: enable BnB pruning and faster exit.
+    :param time_limit: optional time limit (in seconds) for execution.
+    :return: ``path`` as 2d ndarray (nx2)
     """
     ...

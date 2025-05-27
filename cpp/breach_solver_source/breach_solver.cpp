@@ -1,13 +1,14 @@
 #include <iostream>
 #include <algorithm>
-#include <ranges>
+#include <ranges>    // NOLINT
 #include <memory>
+#include <chrono>
 
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 
-#include <omp.h>
+#include <omp.h>    // NOLINT
 
 
 struct DFSResult {
@@ -28,8 +29,13 @@ DFSResult processColumn(
     const int num_demons,
     const int init_stack_size,
     const int padded_demon_length,
-    const bool enable_pruning
+    const bool enable_pruning,
+    const double time_limit
 ) {
+
+    bool time_expired = false;
+    const std::chrono::steady_clock::time_point start_time = time_limit > 0.0 ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+
     // allocating stack
     const int max_stack = init_stack_size;
     std::unique_ptr<int[]> stack_path(new int[max_stack * buffer_size * 2]);
@@ -82,26 +88,37 @@ DFSResult processColumn(
         --pointer;
         const int curr_ptr = pointer;
 
+        if (time_limit > 0.0 && !time_expired) {
+            auto current_time = std::chrono::steady_clock::now();
+            double elapsed = std::chrono::duration<double>(current_time - start_time).count();
+            if (elapsed >= time_limit) {
+                time_expired = true;
+            }
+        }
+
         const int curr_len = stack_length[curr_ptr];
         const int curr_score = stack_score[curr_ptr];
 
         // update best path
-        if (
-            (curr_score > best_score ||
-             (!enable_pruning && curr_score == best_score && curr_len < best_path_length))
-            && curr_len <= buffer_size) [[unlikely]] {
-            best_score = curr_score;
-            best_path_length = curr_len;
-            for (int i = 0; i < curr_len; ++i) {
-                best_path[i * 2] = stack_path[curr_ptr * buffer_size * 2 + i * 2];
-                best_path[i * 2 + 1] = stack_path[curr_ptr * buffer_size * 2 + i * 2 + 1];
-            }
-            if (enable_pruning && best_score == max_score) [[likely]] {
-                break;
-            }
+        if ((curr_score > best_score ||
+                    (!enable_pruning &&
+                    curr_score == best_score &&
+                    curr_len < best_path_length)) &&
+                    curr_len <= buffer_size
+            ) [[unlikely]] {
+                best_score = curr_score;
+                best_path_length = curr_len;
+                for (int i = 0; i < curr_len; ++i) {
+                    best_path[i * 2] = stack_path[curr_ptr * buffer_size * 2 + i * 2];
+                    best_path[i * 2 + 1] = stack_path[curr_ptr * buffer_size * 2 + i * 2 + 1];
+                }
+                if (enable_pruning && best_score == max_score) [[likely]] {
+                    break;
+                }
         }
 
-        if (curr_len < buffer_size) {
+        // if process children (with time limit)
+        if (curr_len < buffer_size && !time_expired) {
             const int next_step = curr_len + 1;
             const int last_r = stack_path[curr_ptr * buffer_size * 2 + (curr_len - 1) * 2];
             const int last_c = stack_path[curr_ptr * buffer_size * 2 + (curr_len - 1) * 2 + 1];
@@ -178,7 +195,7 @@ DFSResult processColumn(
                                 rem += demons_costs[d];
                             }
                         }
-                        do_push = (new_score + rem > best_score);
+                        do_push = new_score + rem > best_score;
                     }
 
                     if (do_push) [[likely]] {
@@ -212,7 +229,8 @@ DFSResult runParallelColumns(
     const int num_demons,
     const int init_stack_size,
     const int padded_demon_length,
-    const bool enable_pruning
+    const bool enable_pruning,
+    const double time_limit
 ) {
 
     auto* all_results = new DFSResult[n];
@@ -233,7 +251,8 @@ DFSResult runParallelColumns(
                 num_demons,
                 init_stack_size,
                 padded_demon_length,
-                enable_pruning
+                enable_pruning,
+                time_limit
             );
         }
     }
@@ -266,7 +285,8 @@ auto processBreach_fromNumpy(
     const int max_score,
     const int num_demons,
     const int init_stack_size,
-    const bool enable_pruning
+    const bool enable_pruning,
+    const double time_limit
 ) -> py::array_t<int32_t> {
 
     // simple array validation
@@ -300,7 +320,8 @@ auto processBreach_fromNumpy(
         num_demons,
         init_stack_size,
         padded_demon_length,
-        enable_pruning
+        enable_pruning,
+        time_limit
     );
 
     // translating back to numpy
@@ -329,6 +350,8 @@ PYBIND11_MODULE(breach_solver_cpp, m) {
         py::arg("max_score"),
         py::arg("num_demons"),
         py::arg("init_stack_size"),
-        py::arg("enable_pruning"));
+        py::arg("enable_pruning"),
+        py::arg("time_limit")
+        );
 }
 

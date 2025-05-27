@@ -51,6 +51,8 @@ def get_solver(name: str) -> Solver:
          Allow branch-and-bound pruning. *Heuristic* may yield non-optimal solutions (optimal uses least buffer among max-scored).
        - ``avoid_c``: *bool* = ``False``
          Skip C++ backend (NOT RECOMMENDED: Python-Numba has recompilation overhead for varying inputs).
+       - ``timeout``: *float* = ``0.0``
+             If ``>0.`` set time limit on execution, if ``<=0.`` process task as normal (look ``enable_pruning``).
     **Ant-colony**
        - ``avoid_c``: *bool* = ``False``
          Skip C++ backend (NOT RECOMMENDED: Python implementation is outdated/slower).
@@ -73,13 +75,13 @@ def get_solver(name: str) -> Solver:
         - **Gurobi**: License restrictions may block large-scale tasks.
         - **SCIP**: Slower than Gurobi but no model size restrictions.
         - **Ant-colony**: Use `.seed()` to set RNG state for reproducibility.
-        - **Brute-force**: May take unreasonable long time to solve for large-scale tasks.
+        - **Brute-force**, **Ant-colony**: ``avoid_c=True`` should not be used since those methods are deprecated and inefficient.
 
     ----
 
     .. warning::
        - ***WARNING***
-        - **Brute force**: Large-scale tasks may cause unreasonable runtime even with pruning.
+        - **Brute force**: Large-scale tasks may cause unreasonable runtime even with pruning, consider setting ``timeout``.
         - **Ant-colony**: Using ``stagnant_limit < 0 < n_iterations`` may cause infinite loops (2³¹-1 iterations).
 
     :param name: Solver type code: (`'gurobi'`, `'brute'`, `'ant_col'`, `'scip'`), including corresponding shortcuts.
