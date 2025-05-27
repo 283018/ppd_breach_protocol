@@ -5,19 +5,19 @@ from .solvers_abc import Solver, solver_registry
 
 
 @overload
-def get_solver(name: Literal['gurobi']) -> GurobiSolver:
+def get_solver(name: Literal['gurobi', 'gb']) -> GurobiSolver:
     ...
 
 @overload
-def get_solver(name: Literal['brute']) -> BruteSolver:
+def get_solver(name: Literal['brute', 'bf']) -> BruteSolver:
     ...
 
 @overload
-def get_solver(name: Literal['ant_col']) -> AntColSolver:
+def get_solver(name: Literal['ant_col', 'ac']) -> AntColSolver:
     ...
 
 @overload
-def get_solver(name: Literal['scip']) -> ScipSolver:
+def get_solver(name: Literal['scip', 'sc']) -> ScipSolver:
     ...
 
 

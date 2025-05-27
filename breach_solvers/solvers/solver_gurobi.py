@@ -36,7 +36,7 @@ def ensure_reset(method):
 
 
 # noinspection DuplicatedCode
-@register_solver('gurobi')
+@register_solver('gurobi', 'gb')
 class GurobiSolver(Solver):
     _allowed_kwargs = {'output_flag': bool, 'strict_opt': bool}
 
@@ -131,6 +131,9 @@ class GurobiSolver(Solver):
 
         if output_flag:
             print(f"\nBuild time: {time_mid - time_start:.6} sec \nOptimization time: {time_end - time_mid:.6} sec")
+
+        if x_path.size == 0:
+            return NoSolution(reason="No valid solution possible for given task"), 0.0
 
         return Solution(x_path, buffer_nums, y_active, y_total_points), time_end - time_start
 

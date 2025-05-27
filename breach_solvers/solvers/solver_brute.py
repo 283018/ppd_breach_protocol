@@ -12,7 +12,7 @@ from warnings import warn
 
 
 
-@register_solver('brute')
+@register_solver('brute', 'bf')
 class BruteSolver(Solver):
     """
     Brute-Force solver

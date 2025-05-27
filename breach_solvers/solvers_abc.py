@@ -12,10 +12,11 @@ CONSTR_MAP = {list: list, tuple: tuple, set:set, ndarray: array}
 solver_registry:Dict[str, Callable] = {}
 
 
-def register_solver(name: str) -> Callable[[Any], Any]:
+def register_solver(*names: str) -> Callable[[Any], Any]:
     """Decorator to register solvers"""
     def decorator(cls):
-        solver_registry[name] = cls
+        for name in names:
+            solver_registry[name] = cls
         return cls
     return decorator
 
