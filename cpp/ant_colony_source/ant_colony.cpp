@@ -1,22 +1,22 @@
 #include <optional>
 #include <random>
 #include <algorithm>
-#include <ranges>
+#include <ranges>       // NOLINT: in c++20 not needed, insignificant on runtime
 #include <stdexcept>
 #include <cmath>
 #include <utility>
-#include <iostream>
 #include <memory>
 
 // only for conversion in python interface
-#include <cstdint>
+#include <cstdint>      // NOLINT: same as above
 #include <vector>
+// #include <iostream>     // NOLINT: same as above
 
-#include <omp.h>
-
+#include <omp.h>        // NOLINT: same as above
 
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
+
 
 namespace py = pybind11;
 
@@ -69,6 +69,7 @@ class Solver {
     const int buffer_size;
     const int n;
     const int matrix_size;
+    const int mat_sqr;
     const int max_demon_length;
     const double* heuristic;
     const double alpha;
@@ -92,6 +93,10 @@ class Solver {
         if (a.cost > b.cost) return true;
         if (a.cost < b.cost) return false;
         return a.length < b.length;
+    }
+
+    void set_pheromone(const double def_value = 1.0) const {
+        std::ranges::fill_n(pheromone.get(), mat_sqr, def_value);
     }
 
     std::optional<std::pair<int, int>> next_move(
@@ -240,7 +245,7 @@ class Solver {
         {
             py::gil_scoped_release release;
             #pragma omp parallel for
-            for (int i = 0; i < matrix_size * matrix_size; ++i) {
+            for (int i = 0; i < mat_sqr; ++i) {
                 pheromone[i] *= evap_factor;
             }
         }
@@ -263,7 +268,7 @@ public:
         const int* matrix_, const int* demons_,
         const int* demon_lengths_, const int* demons_costs_,
         const int num_demons_, const int buffer_size_,
-        const int n_, const int matrix_size_, const int max_demon_length_,
+        const int n_, const int max_demon_length_,
         const double* heuristic_,
         const double alpha_, const double beta_,
         const double evaporation_, const double q_,
@@ -271,16 +276,18 @@ public:
       : matrix(matrix_), demons(demons_),
         demon_lengths(demon_lengths_), demons_costs(demons_costs_),
         num_demons(num_demons_), buffer_size(buffer_size_),
-        n(n_), matrix_size(matrix_size_), max_demon_length(max_demon_length_),
+        n(n_), matrix_size(n * n), mat_sqr(matrix_size * matrix_size),
+        max_demon_length(max_demon_length_),
         heuristic(heuristic_),
         alpha(alpha_), beta(beta_),
-        evap_factor((1.0 - evaporation_)), q(q_) {
+        evap_factor(1.0 - evaporation_), q(q_) {
             rng.seed(seed);
-            pheromone = std::make_unique_for_overwrite<double[]>(matrix_size * matrix_size);
-            std::ranges::fill_n(pheromone.get(), matrix_size * matrix_size, 1.0);
+            pheromone = std::make_unique_for_overwrite<double[]>(mat_sqr);
+            set_pheromone();
     }
 
-    SolCandidate run_ants(const int n_ants, const int n_iterations) {
+    SolCandidate run_ants(const int n_ants, const int n_iterations, const int stagnant_limit) {
+        // setup of thread rngs
         ant_rngs = std::make_unique<std::mt19937[]>(n_ants);
         std::uniform_int_distribution<unsigned int> seed_dist(0, UINT_MAX);
         const unsigned int base_seed = seed_dist(rng);
@@ -288,15 +295,51 @@ public:
             ant_rngs[i].seed(base_seed + i);
         }
 
+        int no_improvements = 0;
+        int best_cost = -1;
+
+        const int no_improve_limit = stagnant_limit == 0 ? n * buffer_size * num_demons : stagnant_limit;
+        const bool check_no_improvement = no_improve_limit > 0;
+
+        const int effective_limit = n_iterations <= 0 ? INT_MAX : n_iterations;
+
+        // std::cout
+        // << "stagnant_limit = " << stagnant_limit << std::endl
+        // << "no_improve_limit = " << no_improve_limit << std::endl
+        // << "check_no_improvement = " << check_no_improvement << std::endl
+        // << "n_iterations = " << n_iterations << std::endl
+        // << "effective_limit = " << effective_limit << std::endl
+        // << std::endl << std::flush;
+
         std::unique_ptr<SolCandidate> best_ptr;
-        for (int iter = 0; iter < n_iterations; ++iter) {
+        int i;
+        for (i = 0; i < effective_limit; ++i) {
+
+            // ants lets go
             auto solutions = get_solutions_candidates(n_ants);
             SolCandidate current_best = update_best(best_ptr.get(), solutions.get(), n_ants);
+
+            // updating best, or counting no_improve
+            if (current_best.cost > best_cost) {
+                // std::cout << "iter " << i << " cost " << best_cost << std::endl << std::flush;
+                best_cost = current_best.cost;
+                no_improvements = 0;
+            } else {
+                ++no_improvements;
+            }
+
             best_ptr = std::make_unique<SolCandidate>(std::move(current_best));
+
+            if (check_no_improvement && no_improvements >= no_improve_limit) { break; }
+
             int top_size;
             const SolCandidate* top_solutions = select_top_solutions(solutions.get(), n_ants, n_ants, &top_size);
             update_pheromones(top_solutions, top_size);
         }
+
+
+        // std::cout << "end: " << i << " cost " << best_cost << std::endl << std::flush;
+        // std::cout << "no_improve_limit " << no_improve_limit << std::endl << std::flush;
 
         if (!best_ptr) [[unlikely]] {throw std::runtime_error("No solutions found");}
         return std::move(*best_ptr);
@@ -307,22 +350,26 @@ public:
 
 
 py::tuple ant_colony_fromNumpy(
-    py::array_t<std::int8_t> matrix,
-    py::array_t<std::int8_t> flat_demons,
-    py::array_t<std::int8_t> demons_costs,
+    const py::array_t<std::int8_t>& matrix,
+    const py::array_t<std::int8_t>& flat_demons,
+    const py::array_t<std::int8_t>& demons_costs,
     int buffer_size,
     int n,
     int num_demons,
-    py::array_t<int> demons_lengths,
+    const py::array_t<int>& demons_lengths,
     int max_demon_len,
-    py::array_t<double> heuristic,
+    const py::array_t<double>& heuristic,
     double alpha,
     double beta,
     double evaporation,
     double q,
     unsigned int seed,
     int n_ants,
-    int n_iterations) {
+    int n_iterations,
+    int stagnant_limit
+    ) {
+
+    // I genuinely hate how complicated that comparing to brute-force args casting
 
     // matrix
     auto matrix_buf = matrix.request();
@@ -331,7 +378,7 @@ py::tuple ant_colony_fromNumpy(
     std::vector<int> matrix_cpp(n * n);
     auto m_ptr = static_cast<std::int8_t*>(matrix_buf.ptr);
     for (int i = 0; i < matrix_buf.size; ++i)
-        matrix_cpp[i] = m_ptr[i];
+        matrix_cpp[i] = static_cast<int>(static_cast<unsigned char>(m_ptr[i]));
 
     // flat_demons
     auto demons_buf = flat_demons.request();
@@ -339,8 +386,9 @@ py::tuple ant_colony_fromNumpy(
         throw std::runtime_error("Invalid flat_demons size");
     std::vector<int> demons_cpp(demons_buf.size);
     auto d_ptr = static_cast<std::int8_t*>(demons_buf.ptr);
-    for (int i = 0; i < demons_buf.size; ++i)
-        demons_cpp[i] = d_ptr[i];
+    for (int i = 0; i < demons_buf.size; ++i) {
+        demons_cpp[i] = static_cast<int>(static_cast<unsigned char>(d_ptr[i]));
+    }
 
     // demons_costs
     auto costs_buf = demons_costs.request();
@@ -349,32 +397,30 @@ py::tuple ant_colony_fromNumpy(
     std::vector<int> costs_cpp(num_demons);
     auto c_ptr = static_cast<std::int8_t*>(costs_buf.ptr);
     for (int i = 0; i < num_demons; ++i)
-        costs_cpp[i] = c_ptr[i];
+        costs_cpp[i] = static_cast<int>(static_cast<unsigned char>(c_ptr[i]));
 
     // demon_lengths
     auto len_buf = demons_lengths.request();
     if (len_buf.size != num_demons)
         throw std::runtime_error("Invalid demons_lengths size");
-    std::vector<int> lengths_cpp(static_cast<int*>(len_buf.ptr),
+    std::vector lengths_cpp(static_cast<int*>(len_buf.ptr),
                                static_cast<int*>(len_buf.ptr) + num_demons);
 
     // heuristic
-    // I could move generating it here, but numpy time already negligible for each run so whatever
+    // I could move generating it here, but numpy exec time already negligible for each run so whatever
     auto h_buf = heuristic.request();
     if (h_buf.size != n * n)
         throw std::runtime_error("Invalid heuristic size");
-    double* h_ptr = static_cast<double*>(h_buf.ptr);
-
-    const int matrix_size = n * n;
+    auto *h_ptr = static_cast<double *>(h_buf.ptr);
 
     Solver solver(
         matrix_cpp.data(),
         demons_cpp.data(), lengths_cpp.data(),
         costs_cpp.data(),
-        num_demons, buffer_size, n, matrix_size, max_demon_len,
+        num_demons, buffer_size, n, max_demon_len,
         h_ptr, alpha, beta, evaporation, q, seed);
 
-    SolCandidate best = solver.run_ants(n_ants, n_iterations);
+    SolCandidate best = solver.run_ants(n_ants, n_iterations, stagnant_limit);
 
     // path to ndarray
     std::vector<py::ssize_t> path_shape = {
@@ -419,7 +465,8 @@ PYBIND11_MODULE(ant_colony_cpp, m) {
         py::arg("q"),
         py::arg("seed"),
         py::arg("n_ants"),
-        py::arg("n_iterations")
+        py::arg("n_iterations"),
+        py::arg("stagnant_limit")
     );
 }
 
