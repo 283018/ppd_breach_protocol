@@ -42,18 +42,39 @@ class Solver(ABC, metaclass=ABCMeta):
         ...
 
     def __call__(self, task:Task, **kwargs:Any) -> Tuple[Solution|NoSolution, float]:
+        """
+        Shortcut for ``.solve()``
+
+        :param task: ``Task``
+        :param kwargs: same as in ``.solve()``
+        :return: ``tuple``: (found ``Solution`` or ``NoSolution``, main execution time)
+            excluding pre- and post- calculations.
+        """
         return self.solve(task, **kwargs)
 
     def s(self, task:Task, **kwargs:Any) -> Tuple[Solution|NoSolution, float]:
-         return self.solve(task, **kwargs)
+        """
+        Shortcut for ``.solve()``
+
+        :param task: ``Task``
+        :param kwargs: same as in ``.solve()``
+        :return: ``tuple``: (found ``Solution`` or ``NoSolution``, main execution time)
+            excluding pre- and post- calculations.
+        """
+        return self.solve(task, **kwargs)
 
     def solve_iter(self, task_list:Iterable[Task], **kwargs:Any) -> Tuple[List[Solution|NoSolution], List[float,]]:
         """
         Solve tasks from any iterable in loop.
-        :param task_list:
-        :param kwargs: kwargs accepted by self.solve
-        :return: List of solutions, list of times
+
+        If given single instance will call itself with single-length list.
+
+        :param task_list: ``list``: (``Task``)
+        :param kwargs: ``kwargs`` accepted by ``.solve()``
+        :return: ``tuple``: ( ``list`` [``Solution`` or ``NoSolution``], ``list`` [``execution_time``] )
         """
+        if not isinstance(task_list, Iterable) and isinstance(task_list, Task):
+            return self.solve_iter([task_list], **kwargs)
 
         solved = []
         times = []
@@ -66,8 +87,8 @@ class Solver(ABC, metaclass=ABCMeta):
     @abstractmethod
     def solve(self, task:Task, **kwargs:Any) -> Tuple[Solution|NoSolution, float]:
         """
-        'solve' is main method to solve task
-        's' and '__call__' are essentially a shortcuts to 'solve', look __doc__ of subclass solve method
+        ``.solve()`` is main method to solve task.
+        ``.s()`` and ``.__call__()`` are shortcuts to ``.solve()``, look __doc__ of subclass solve method,
         """
         ...
     __call__.__doc__ = s.__doc__ = solve.__doc__
