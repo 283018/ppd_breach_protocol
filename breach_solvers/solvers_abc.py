@@ -101,7 +101,7 @@ class Solver(ABC, metaclass=ABCMeta):
         if kwargs and not allowed_kwargs:
             raise TypeError(f"{self.__class__.__name__} does not support any keyword arguments. Received: {list(kwargs.keys())}")
         for name, value in kwargs.items():
-            if name not in allowed_kwargs:
+            if name not in allowed_kwargs.keys():
                 raise TypeError(f"Unexpected keyword argument: '{name}'")
 
             expected_type = allowed_kwargs[name]
