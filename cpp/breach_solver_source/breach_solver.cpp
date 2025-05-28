@@ -1,6 +1,5 @@
 #include <iostream>
 #include <algorithm>
-#include <ranges>    // NOLINT
 #include <memory>
 #include <chrono>
 
@@ -135,7 +134,7 @@ DFSResult processColumn(
                     if (new_ptr >= max_stack) [[unlikely]] throw std::runtime_error("Stack overflow!");;
 
                     // copy path
-                    std::ranges::copy_n(
+                    std::copy_n(
                         &stack_path[curr_ptr * buffer_size * 2],
                         buffer_size * 2,
                         &stack_path[new_ptr * buffer_size * 2]
@@ -143,21 +142,21 @@ DFSResult processColumn(
                     stack_path[new_ptr * buffer_size * 2 + curr_len * 2] = r;
                     stack_path[new_ptr * buffer_size * 2 + curr_len * 2 + 1] = c;
                     // copy buffer
-                    std::ranges::copy_n(
+                    std::copy_n(
                         &stack_buff[curr_ptr * buffer_size],
                         buffer_size,
                         &stack_buff[new_ptr * buffer_size]
                     );
                     stack_buff[new_ptr * buffer_size + curr_len] = matrix[r * n + c];
                     // copy used mask
-                    std::ranges::copy_n(
+                    std::copy_n(
                         &stack_used[curr_ptr * n * n],
                         n * n,
                         &stack_used[new_ptr * n * n]
                     );
                     stack_used[new_ptr * n * n + r * n + c] = true;
                     // copy active demons
-                    std::ranges::copy_n(
+                    std::copy_n(
                         &stack_activ[curr_ptr * num_demons],
                         num_demons,
                         &stack_activ[new_ptr * num_demons]
@@ -209,7 +208,7 @@ DFSResult processColumn(
     }
 
     auto path = std::make_unique<int[]>(best_path_length * 2);
-    std::ranges::copy_n(best_path.get(), best_path_length * 2, path.get());
+    std::copy_n(best_path.get(), best_path_length * 2, path.get());
 
     return {std::move(path), best_score, best_path_length};
 }
@@ -327,7 +326,7 @@ auto processBreach_fromNumpy(
     // translating back to numpy
     py::array_t<int32_t> path_array({best_result.length, 2});
     const auto path_data = static_cast<int32_t*>(path_array.request().ptr);
-    std::ranges::copy_n(
+    std::copy_n(
         best_result.path.get(),
         2 * best_result.length,
         path_data

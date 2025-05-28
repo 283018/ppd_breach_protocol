@@ -1,18 +1,17 @@
 #include <optional>
 #include <random>
 #include <algorithm>
-#include <ranges>       // NOLINT: in c++20 not needed, insignificant on runtime
 #include <stdexcept>
 #include <cmath>
 #include <utility>
 #include <memory>
 
 // only for conversion in python interface
-#include <cstdint>      // NOLINT: same as above
+#include <cstdint>      // NOLINT: not needed for c++20
 #include <vector>
-// #include <iostream>     // NOLINT: same as above
+// #include <iostream>     // NOLINT: was here for testing
 
-#include <omp.h>        // NOLINT: same as above
+#include <omp.h>        // NOLINT: not needed for c++20
 
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
@@ -46,13 +45,13 @@ struct SolCandidate {
         std::unique_ptr<std::pair<int, int>[]> new_path;
         if (path && length > 0) {
             new_path = std::make_unique<std::pair<int, int>[]>(length);
-            std::ranges::copy_n(path.get(), static_cast<int>(length), new_path.get());
+            std::copy_n(path.get(), static_cast<int>(length), new_path.get());
         }
 
         std::unique_ptr<int[]> new_buffer;
         if (buffer_seq && length > 0) {
             new_buffer = std::make_unique<int[]>(length);
-            std::ranges::copy_n(buffer_seq.get(), static_cast<int>(length), new_buffer.get());
+            std::copy_n(buffer_seq.get(), static_cast<int>(length), new_buffer.get());
         }
 
         return {std::move(new_path), cost, length, std::move(new_buffer)};
@@ -96,7 +95,7 @@ class Solver {
     }
 
     void set_pheromone(const double def_value = 1.0) const {
-        std::ranges::fill_n(pheromone.get(), mat_sqr, def_value);
+        std::fill_n(pheromone.get(), mat_sqr, def_value);
     }
 
     std::optional<std::pair<int, int>> next_move(
@@ -282,7 +281,7 @@ public:
         alpha(alpha_), beta(beta_),
         evap_factor(1.0 - evaporation_), q(q_) {
             rng.seed(seed);
-            pheromone = std::make_unique_for_overwrite<double[]>(mat_sqr);
+            pheromone = std::make_unique<double[]>(mat_sqr);
             set_pheromone();
     }
 
