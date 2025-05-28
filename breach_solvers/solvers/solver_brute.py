@@ -14,7 +14,7 @@ from warnings import warn
 @register_solver('bf', 'brute')
 class BruteSolver(Solver):
     """Brute-Force solver"""
-    _allowed_kwargs = {'to_prune':bool, 'avoid_c':bool}
+    _allowed_kwargs = {'to_prune':bool, 'avoid_c':bool, 'timeout':float}
 
 
     def _warm_up(self) -> None:
@@ -60,7 +60,7 @@ class BruteSolver(Solver):
         Keyword arguments:
            - ``to_prune``: *bool* = ``True``
              If True, allows branch-and-bound pruning and best-score loop cut.
-             *Heuristic* may yield non-optimal solutions (optimal solution uses the least buffer among maximum-scored solutions).
+             **WARNING:** *heuristic* may yield non-optimal solutions (optimal solution uses the least buffer among maximum-scored solutions).
            - ``avoid_c``: *bool* = ``False``
              If True, skips C++ backend and uses Python-Numba implementation.
            - ``timeout``: *float* = ``0.0``
@@ -78,7 +78,7 @@ class BruteSolver(Solver):
         self._validate_kwargs(kwargs)
         enable_pruning = kwargs.get("to_prune", True)
         avoid_c_back = kwargs.get("avoid_c", False)
-        time_limit = kwargs.get("time_lim", 0.0)
+        time_limit = kwargs.get("timeout", 0.0)
 
         # unpacking task
         matrix = task.matrix
