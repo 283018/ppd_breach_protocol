@@ -16,6 +16,22 @@ struct DFSResult {
     int length{};
 };
 
+
+inline bool match(
+    const int *demons_array,
+    const int padded_demon_length,
+    const std::unique_ptr<int[]> &stack_buff,
+    const int d, const int k,
+    const int offset) {
+    for (int j = 0; j < k; ++j) {
+        if (stack_buff[offset + j] != demons_array[d * padded_demon_length + j]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+
 DFSResult processColumn(
     const int start_col,
     const int* matrix,
@@ -51,25 +67,27 @@ DFSResult processColumn(
     std::fill_n(best_path.get(), buffer_size * 2, -1);
 
     // init pos setup
+    const auto matrix_offset = n * n;
     constexpr int start_r = 0;
     const int start_c = start_col;
     const int start_symbol = matrix[start_r * n + start_c];
 
     // first push onto stack
-    std::fill_n(stack_path.get(), max_stack * buffer_size * 2, -1);
+    const auto stack_offset = max_stack * buffer_size;
+    std::fill_n(stack_path.get(), stack_offset * 2, -1);
     stack_path[0 * buffer_size * 2 + 0 * 2] = start_r;
     stack_path[0 * buffer_size * 2 + 0 * 2 + 1] = start_c;
 
-    std::fill_n(stack_buff.get(), max_stack * buffer_size, -1);
+    std::fill_n(stack_buff.get(), stack_offset, -1);
     stack_buff[0 * buffer_size + 0] = start_symbol;
 
     for (int d = 0; d < num_demons; ++d) {
-        const bool active = (demons_lengths[d] == 1 && demons_array[d * padded_demon_length + 0] == start_symbol);
+        const bool active = demons_lengths[d] == 1 && demons_array[d * padded_demon_length + 0] == start_symbol;
         stack_activ[0 * num_demons + d] = active;
     }
 
-    std::fill_n(stack_used.get(), max_stack * n * n, false);
-    stack_used[0 * n * n + start_r * n + start_c] = true;
+    std::fill_n(stack_used.get(), max_stack * matrix_offset, false);
+    stack_used[0 * matrix_offset + start_r * n + start_c] = true;
 
     int initial_score = 0;
     for (int d = 0; d < num_demons; ++d) {
@@ -88,9 +106,7 @@ DFSResult processColumn(
         const int curr_ptr = pointer;
 
         if (time_limit > 0.0 && !time_expired) {
-            auto current_time = std::chrono::steady_clock::now();
-            double elapsed = std::chrono::duration<double>(current_time - start_time).count();
-            if (elapsed >= time_limit) {
+            if (std::chrono::duration<double>(std::chrono::steady_clock::now() - start_time).count() >= time_limit) {
                 time_expired = true;
             }
         }
@@ -119,28 +135,34 @@ DFSResult processColumn(
         // if process children (with time limit)
         if (curr_len < buffer_size && !time_expired) {
             const int next_step = curr_len + 1;
-            const int last_r = stack_path[curr_ptr * buffer_size * 2 + (curr_len - 1) * 2];
-            const int last_c = stack_path[curr_ptr * buffer_size * 2 + (curr_len - 1) * 2 + 1];
 
-            const bool row_fixed = (next_step % 2 == 0);
+            const auto pair_cell_offset = curr_ptr * buffer_size * 2 + (curr_len - 1) * 2;
+            const int last_r = stack_path[pair_cell_offset];
+            const int last_c = stack_path[pair_cell_offset + 1];
+
+            const bool row_fixed = next_step % 2 == 0;
             const bool col_fixed = !row_fixed;
 
             for (int idx = 0; idx < n; ++idx) {
                 const int r = col_fixed ? last_r : idx;
                 const int c = col_fixed ? idx : last_c;
 
-                if (!stack_used[curr_ptr * n * n + r * n + c]) {
+                if (!stack_used[curr_ptr * matrix_offset + r * n + c]) {
+
                     const int new_ptr = pointer;
-                    if (new_ptr >= max_stack) [[unlikely]] throw std::runtime_error("Stack overflow!");;
+                    if (new_ptr >= max_stack) [[unlikely]] throw std::runtime_error("Stack overflow!");
 
                     // copy path
+                    const auto path_offset = buffer_size * 2;
+                    const auto len_offset = curr_len * 2;
                     std::copy_n(
-                        &stack_path[curr_ptr * buffer_size * 2],
-                        buffer_size * 2,
-                        &stack_path[new_ptr * buffer_size * 2]
+                        &stack_path[curr_ptr * path_offset],
+                        path_offset,
+                        &stack_path[new_ptr * path_offset]
                     );
-                    stack_path[new_ptr * buffer_size * 2 + curr_len * 2] = r;
-                    stack_path[new_ptr * buffer_size * 2 + curr_len * 2 + 1] = c;
+                    stack_path[new_ptr * path_offset + len_offset] = r;
+                    stack_path[new_ptr * path_offset + len_offset + 1] = c;
+
                     // copy buffer
                     std::copy_n(
                         &stack_buff[curr_ptr * buffer_size],
@@ -148,13 +170,15 @@ DFSResult processColumn(
                         &stack_buff[new_ptr * buffer_size]
                     );
                     stack_buff[new_ptr * buffer_size + curr_len] = matrix[r * n + c];
+
                     // copy used mask
                     std::copy_n(
-                        &stack_used[curr_ptr * n * n],
-                        n * n,
-                        &stack_used[new_ptr * n * n]
+                        &stack_used[curr_ptr * matrix_offset],
+                        matrix_offset,
+                        &stack_used[new_ptr * matrix_offset]
                     );
-                    stack_used[new_ptr * n * n + r * n + c] = true;
+                    stack_used[new_ptr * matrix_offset + r * n + c] = true;
+
                     // copy active demons
                     std::copy_n(
                         &stack_activ[curr_ptr * num_demons],
@@ -168,21 +192,18 @@ DFSResult processColumn(
                     // check demon matches
                     for (int d = 0; d < num_demons; ++d) {
                         if (!stack_activ[new_ptr * num_demons + d]) {
-                            const int k = demons_lengths[d];
-                            if (new_len >= k) {
-                                bool match = true;
-                                for (int j = 0; j < k; ++j) {
-                                   if (stack_buff[new_ptr * buffer_size + (new_len - k + j)] != demons_array[d*padded_demon_length + j]) {
-                                       match = false;
-                                       break;
-                                   }
-                                }
-                                if (match) {
+                            if (const int k = demons_lengths[d]; new_len >= k) {
+                                if (match(
+                                    demons_array, padded_demon_length,
+                                    stack_buff, d, k,
+                                    new_ptr * buffer_size + new_len - k)) {
                                     stack_activ[new_ptr * num_demons + d] = true;
                                     new_score += demons_costs[d];
-                                }
+                                    }
                             }
                         }
+
+
                     }
 
                     // optional pruning
@@ -233,6 +254,7 @@ DFSResult runParallelColumns(
 ) {
 
     auto* all_results = new DFSResult[n];
+    int best_index = 0;
 
     {
         py::gil_scoped_release release;     // in theory that is required, in practise - not really, in my opinion let it be
@@ -254,15 +276,12 @@ DFSResult runParallelColumns(
                 time_limit
             );
         }
-    }
 
-    int best_index = 0;
-    for (int i = 1; i < n; ++i) {
-        if (all_results[i].score > all_results[best_index].score ||
-            (all_results[i].score == all_results[best_index].score &&
-             all_results[i].length < all_results[best_index].length)) {
-            best_index = i;
-             }
+        for (int i = 1; i < n; ++i) {
+            if (all_results[i].score > all_results[best_index].score ||
+                (all_results[i].score == all_results[best_index].score &&
+                 all_results[i].length < all_results[best_index].length)) { best_index = i; }
+        }
     }
 
     auto best_result = std::move(all_results[best_index]);
