@@ -22,6 +22,9 @@ _t_*
 /tunung/
 /tuning/*
 
+# data collection
+/measurements/
+
 
 # c specific module
 /cpp/build/
