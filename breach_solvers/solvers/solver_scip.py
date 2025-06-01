@@ -116,7 +116,7 @@ class ScipSolver(Solver):
         d_amo = len(demons)
         d_lengths = array([d.size for d in demons])
         # max_points = costs.sum()
-        rewards_per_symbol = d_lengths / costs
+        rewards_per_symbol = costs / d_lengths
         unused_cell_reward = 0.1 * rewards_per_symbol.min()
 
         self.model.hideOutput(not output_flag)
