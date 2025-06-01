@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from numpy import ndarray, integer, int8, zeros, array_equal
+from numpy import ndarray, integer, int8, zeros, array_equal, full_like
 from numpy.lib.stride_tricks import sliding_window_view
 from typing import Optional, Self, Any
 from warnings import warn
@@ -21,9 +21,6 @@ class Solution:
     total_points: Optional[int|integer] = None
 
     def __post_init__(self):
-        self._validate_inputs()
-
-    def _validate_inputs(self):
         path = self.path
         buffer_sequence = self.buffer_sequence
         active_demons = self.active_demons
@@ -142,11 +139,16 @@ class NoSolution(Solution):
     path: Optional[ndarray] = None
     reason: str = None
 
-    def _validate_inputs(self):
+    def __post_init__(self):
         if self.path is not None:
-            raise ValueError("In NoSolution, 'path' must always be None")
+            warn(f"Creating NoSolution from non-empty path: \n{self.path}")
         if any(val is not None for val in (self.total_points, self.active_demons, self.buffer_sequence)):
-            raise ValueError("NoSolution can not contain any of {buffer_sequence, active_demons, total_points}")
+            warn(f"Created NoSolution with non-empty values of (buffer_sequence, active_demons, total_points): \n"
+                 f"{self.buffer_sequence, self.active_demons, self.total_points}")
+        self.path = full_like(self.path, fill_value=-1)
+        self.buffer_sequence = full_like(self.buffer_sequence, fill_value=0, dtype=int8)
+        self.active_demons = full_like(self.active_demons, fill_value=False, dtype=bool)
+        self.total_points = 0
 
     def __repr__(self) -> str:
         reason = self.reason or "Unknown"
