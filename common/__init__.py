@@ -2,18 +2,16 @@
 # lazy empty module for grouping imports
 # use for wild-card import
 
-from core import *
-from breach_solvers import *
-from task_generator import *
+from core import Task, DUMMY_TASK, Solution, NoSolution, bprint
+from breach_solvers import get_solver
+from task_generator import TaskFactory
 
-import core
-import breach_solvers
-import task_generator
+import core             # noqa
+import breach_solvers   # noqa
+import task_generator   # noqa
 
 
-__all__ = (
-        core.__all__ +
-        task_generator.__all__ +
-        breach_solvers.__all__
-)
+__all__ = [
+    'Task', 'DUMMY_TASK', 'Solution', 'NoSolution', 'bprint', 'get_solver', 'TaskFactory',
+]
 
