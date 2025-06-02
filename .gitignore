@@ -30,3 +30,6 @@ _t_*
 /cpp/build/
 /cpp/pybind11/
 /cpp/cmake-build-debug/
+
+# ruff specific
+/ruff.toml
