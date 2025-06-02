@@ -1,5 +1,4 @@
 from typing import overload, Literal
-from collections import defaultdict
 
 from .solvers import BruteSolver, GurobiSolver, AntColSolver, ScipSolver
 from .solvers_abc import Solver, solver_registry
