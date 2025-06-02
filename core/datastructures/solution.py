@@ -1,8 +1,9 @@
 from dataclasses import dataclass
-from numpy import ndarray, integer, int8, zeros, array_equal, full_like
-from numpy.lib.stride_tricks import sliding_window_view
-from typing import Optional, Self, Any
+from typing import Optional, Self
 from warnings import warn
+
+from numpy import array_equal, full_like, int8, integer, ndarray, zeros
+from numpy.lib.stride_tricks import sliding_window_view
 
 
 @dataclass(slots=True)
@@ -15,6 +16,7 @@ class Solution:
     - active_demons: Optional[ndarray(dtype=bool)]
     - total_points: Optional[int|integer]
     """
+
     path: Optional[ndarray] = None
     buffer_sequence: Optional[ndarray] = None
     active_demons: Optional[ndarray] = None
@@ -26,24 +28,27 @@ class Solution:
         active_demons = self.active_demons
         total_points = self.total_points
 
+        msg = ""
+
         if path is None:
-            raise TypeError("Solution must have path, for no-path cases use NoSolution instead")
+            msg += "Solution must have path, for no-path cases use NoSolution instead\n"
         if not isinstance(path, ndarray):
-            raise ValueError("path must be ndarray")
-        if path.size == 0:
-            raise TypeError("Solution must have path, for no-path cases use NoSolution instead")
+            msg += "path must be ndarray\n"
         else:
+            if path.size == 0:
+                msg += "Solution must have path, for no-path cases use NoSolution instead\n"
             if path.ndim != 2 or path.shape[1] != 2:
-                raise ValueError("non-empty path must be 2d array with shape (n, 2)")
-        if buffer_sequence is not None:
-            if not isinstance(buffer_sequence, ndarray) or buffer_sequence.ndim != 1:
-                raise ValueError("buffer_sequence must be 1d ndarray")
-        if active_demons is not None:
-            if not isinstance(active_demons, ndarray) or active_demons.ndim != 1:
-                raise ValueError("active_demons must be 1d ndarray.")
-        if total_points is not None:
-            if not isinstance(total_points, (int|integer)):
-                raise ValueError("total_points must be integer")
+                msg += "non-empty path must be 2d array with shape (n, 2)\n"
+        if buffer_sequence is not None and (not isinstance(buffer_sequence, ndarray) or buffer_sequence.ndim != 1):
+            msg += "buffer_sequence must be 1d ndarray\n"
+        if active_demons is not None and (not isinstance(active_demons, ndarray) or active_demons.ndim != 1):
+            msg += "active_demons must be 1d ndarray.\n"
+        if total_points is not None and not isinstance(total_points, (int|integer)):
+            msg += "total_points must be integer\n"
+
+        if msg != "":
+            raise ValueError(msg)
+
 
     def fill_solution(self, from_task) -> Self:
         """
@@ -93,13 +98,13 @@ class Solution:
             total_points = self.total_points if self.total_points is not None else None,
         )
 
-    def __copy__(self, memo: dict) -> Self:
+    def __copy__(self) -> Self:
         return self.copy()
 
     def __deepcopy__(self, memo: dict) -> Self:
         return self.copy()
 
-    def __eq__(self, other: Any) -> bool:
+    def __eq__(self, other: Self) -> bool:
         if not isinstance(other, Solution):
             return NotImplemented
 
@@ -121,7 +126,7 @@ class Solution:
             and self.total_points == other.total_points
         )
 
-    def __lt__(self, other: Any) -> bool:
+    def __lt__(self, other: Self) -> bool:
         if not isinstance(other, Solution):
             return NotImplemented
 
@@ -136,15 +141,19 @@ class NoSolution(Solution):
     """
     Represents errored/impossible Solutions
     """
-    path: Optional[ndarray] = None
+
+    path: ndarray|None = None
     reason: str = None
 
     def __post_init__(self):
+        msg = ""
         if self.path is not None:
-            warn(f"Creating NoSolution from non-empty path: \n{self.path}")
+            msg += f"Creating NoSolution from non-empty path: \n{self.path}"
         if any(val is not None for val in (self.total_points, self.active_demons, self.buffer_sequence)):
-            warn(f"Created NoSolution with non-empty values of (buffer_sequence, active_demons, total_points): \n"
-                 f"{self.buffer_sequence, self.active_demons, self.total_points}")
+            msg += ("Created NoSolution with non-empty values of (buffer_sequence, active_demons, total_points): \n"
+                    f"{self.buffer_sequence, self.active_demons, self.total_points}")
+        if msg != "":
+            warn(msg)
         self.path = full_like(self.path, fill_value=-1)
         self.buffer_sequence = full_like(self.buffer_sequence, fill_value=0, dtype=int8)
         self.active_demons = full_like(self.active_demons, fill_value=False, dtype=bool)
@@ -154,7 +163,7 @@ class NoSolution(Solution):
         reason = self.reason or "Unknown"
         return f"NoSolution({reason=})"
 
-    def fill_solution(self, from_task=None) -> Self :
+    def fill_solution(self, _from_task=None) -> Self :
         warn("Unable to fill NoSolution")
         return self
 
