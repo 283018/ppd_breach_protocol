@@ -33,3 +33,12 @@ This is a **non-commercial, educational project** created for a university assig
 It demonstrates the application of mathematical optimization (via Gurobi and SCIP solvers) to solve a puzzle inspired by the game.
 
 <br>
+
+---
+
+# Installation
+Run **install.py** from existing virtual environment.
+
+<br>
+
+---
